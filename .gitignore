@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# Briefcase
+build/
+dist/
+logs/
+macOS/
+iOS/
+
+.DS_Store
+*.db

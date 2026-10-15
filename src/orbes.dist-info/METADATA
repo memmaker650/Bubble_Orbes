@@ -1,0 +1,11 @@
+Metadata-Version: 2.1
+Briefcase-Version: 0.4.5
+Name: orbes
+Formal-Name: Orbes
+App-ID: com.example.orbes
+Version: 0.1.0
+Home-page: https://example.com/orbes
+Download-URL: https://example.com/orbes
+Author: Tu Nombre
+Author-email: tu@email.com
+Summary: Juego de orbes y burbujas para iOS y macOS
