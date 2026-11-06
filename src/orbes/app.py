@@ -8,6 +8,9 @@ from .db import Database, default_db_path
 from .display import Display
 from .scenes import MenuScene
 
+# iOS manda a segundo plano la app y puede cerrarla sin avisar: se guarda en ese momento.
+SAVE_EVENTS = (pygame.APP_WILLENTERBACKGROUND, pygame.APP_TERMINATING)
+
 
 class App:
     def __init__(self, db_path=None):
@@ -34,7 +37,10 @@ class App:
                 dt = min(self.clock.tick(S.FPS) / 1000.0, 1 / 30)
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
+                        self.scene.on_close()
                         self.running = False
+                    elif event.type in SAVE_EVENTS:
+                        self.scene.on_close()
                     else:
                         self.scene.handle_event(event)
                 self.scene.update(dt)

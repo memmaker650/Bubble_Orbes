@@ -44,6 +44,18 @@ BUBBLE_ENEMY_LIFE = 7.0
 BUBBLE_ARM_TIME = 0.25         # tiempo antes de poder reventarla
 SHOOT_COOLDOWN = 0.3
 
+# --- Dificultad ---
+# "normal" es el juego tal cual (láser 1 s + 4 s de recarga). Los factores multiplican:
+#   enemy_speed -> velocidad de los enemigos
+#   cooldown    -> tiempo de recarga de la lengua y del láser
+DIFFICULTIES = {
+    "easy":   {"lives": 5, "enemy_speed": 0.8,  "cooldown": 1.25, "bubble_life": 9.0},
+    "normal": {"lives": 3, "enemy_speed": 1.0,  "cooldown": 1.0,  "bubble_life": 7.0},
+    "hard":   {"lives": 2, "enemy_speed": 1.25, "cooldown": 0.75, "bubble_life": 5.0},
+}
+DIFFICULTY_ORDER = ("easy", "normal", "hard")
+DEFAULT_DIFFICULTY = "normal"
+
 # --- Estrella de fin de nivel ---
 STAR_SIZE = 30
 STAR_DELAY = 0.8               # segundos viendo la estrella azul antes del mensaje
@@ -52,6 +64,7 @@ MESSAGE_TIME = 2.5             # duración de los avisos en pantalla
 # --- Reglas ---
 START_LIVES = 3
 INVULN_TIME = 2.0
+RESUME_INVULN = 2.0            # invulnerable al retomar una partida guardada
 POINTS_BUBBLE = 10
 POINTS_ENEMY = 100
 POINTS_LEVEL = 500

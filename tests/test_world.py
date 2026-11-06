@@ -217,3 +217,36 @@ def test_trapping_cancels_attack():
     step(w, int((S.LASER_WINDUP + 0.1) * 60))
     e.trap()
     assert e.attack is None and e.attack_rect() is None
+
+
+# --- dificultad ---
+
+@pytest.mark.parametrize("name", S.DIFFICULTY_ORDER)
+def test_difficulty_rules_are_applied(name):
+    rules = S.DIFFICULTIES[name]
+    w = World(1, seed=1, difficulty=name)
+    base = World(1, seed=1)
+    assert w.lives == rules["lives"]
+    assert w.enemies[0].speed == pytest.approx(base.enemies[0].speed * rules["enemy_speed"])
+    assert all(e.cooldown_factor == rules["cooldown"] for e in w.enemies)
+
+
+def test_normal_difficulty_keeps_laser_one_second_four_recharge():
+    w, e, p = _duel(LaserEnemy, gap=200)
+    assert w.difficulty == "normal"
+    p.invuln = 99
+    step(w, int((S.LASER_WINDUP + S.LASER_DURATION) * 60) + 5)
+    assert e.attack is None
+    assert abs(e.cooldown - 4.0) < 0.1
+
+
+def test_hard_recharges_faster_easy_slower():
+    for name, expected in (("hard", 3.0), ("easy", 5.0)):
+        w = World(1, seed=1, difficulty=name)
+        e = next(e for e in w.enemies if isinstance(e, LaserEnemy))
+        e._end_attack(S.LASER_RECHARGE)
+        assert e.cooldown == pytest.approx(expected)
+
+
+def test_unknown_difficulty_falls_back_to_normal():
+    assert World(1, seed=1, difficulty="imposible").difficulty == "normal"

@@ -13,10 +13,15 @@ TUTORIAL_STEPS = ("move", "jump", "bubble", "trap", "pop", "clear", "star")
 
 
 class World:
-    def __init__(self, level_index=0, lives=S.START_LIVES, score=0, seed=None):
+    def __init__(self, level_index=0, lives=None, score=0, seed=None,
+                 difficulty=S.DEFAULT_DIFFICULTY):
         self.rng = random.Random(seed)
         self.level_index = level_index
-        self.lives = lives
+        if difficulty not in S.DIFFICULTIES:
+            difficulty = S.DEFAULT_DIFFICULTY
+        self.difficulty = difficulty
+        self.rules = S.DIFFICULTIES[difficulty]
+        self.lives = self.rules["lives"] if lives is None else lives
         self.score = score
         self.state = "playing"   # "playing" | "won" | "lost"
         self.level_start_score = score
@@ -62,8 +67,11 @@ class World:
         self.spawn = data.player_spawn
         self.player = Player(*self.spawn)
         speed = S.ENEMY_BASE_SPEED + S.ENEMY_SPEED_STEP * max(0, self.number - 1)
+        speed *= self.rules["enemy_speed"]
         self.enemies = [ENEMY_TYPES[kind](x, y, speed, self.rng)
                         for x, y, kind in data.enemy_spawns]
+        for e in self.enemies:
+            e.cooldown_factor = self.rules["cooldown"]
         self.bubbles: list[Bubble] = []
         self.star = Star(*data.star_pos) if data.star_pos else None
 
@@ -146,7 +154,7 @@ class World:
                         e.trap()
                         self._tutorial_event("trap")
                         b.captured = e
-                        b.life = S.BUBBLE_ENEMY_LIFE
+                        b.life = self.rules["bubble_life"]
                         b._to_float()
                         break
             if b.state == "float":

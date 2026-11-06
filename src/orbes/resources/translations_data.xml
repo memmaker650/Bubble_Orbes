@@ -8,7 +8,7 @@
 <translations default="es">
   <language code="es" name="Español" flag="es">
     <text key="menu.subtitle">Atrapa enemigos en burbujas y revienta</text>
-    <text key="menu.play">Jugar (nivel {level})</text>
+    <text key="menu.play">Jugar</text>
     <text key="menu.scores">Puntuaciones</text>
     <text key="menu.quit">Salir</text>
     <text key="scores.title">Puntuaciones</text>
@@ -28,7 +28,6 @@
     <text key="lost.points">Puntos: {score}</text>
     <text key="common.continue">Toca para continuar</text>
     <text key="player.default">Jugador</text>
-    <text key="menu.play_tutorial">Jugar (tutorial)</text>
     <text key="menu.tutorial">Tutorial</text>
     <text key="hud.tutorial">Tutorial</text>
     <text key="win.tutorial">¡Tutorial completado!</text>
@@ -41,10 +40,19 @@
     <text key="tutorial.pop">Toca la burbuja con el enemigo dentro para reventarla</text>
     <text key="tutorial.clear">Elimina a todos los enemigos</text>
     <text key="tutorial.star">Ahora toca la estrella para terminar el nivel</text>
+    <text key="menu.continue">Continuar (nivel {level})</text>
+    <text key="menu.continue_tutorial">Continuar (tutorial)</text>
+    <text key="play.title">Nueva partida</text>
+    <text key="play.start">Empezar (nivel {level})</text>
+    <text key="play.difficulty">Dificultad: {value}</text>
+    <text key="difficulty.easy">Fácil</text>
+    <text key="difficulty.normal">Medio</text>
+    <text key="difficulty.hard">Difícil</text>
+    <text key="common.back">Volver</text>
   </language>
   <language code="en" name="English" flag="uk">
     <text key="menu.subtitle">Trap enemies in bubbles and pop them</text>
-    <text key="menu.play">Play (level {level})</text>
+    <text key="menu.play">Play</text>
     <text key="menu.scores">High scores</text>
     <text key="menu.quit">Quit</text>
     <text key="scores.title">High scores</text>
@@ -64,7 +72,6 @@
     <text key="lost.points">Score: {score}</text>
     <text key="common.continue">Tap to continue</text>
     <text key="player.default">Player</text>
-    <text key="menu.play_tutorial">Play (tutorial)</text>
     <text key="menu.tutorial">Tutorial</text>
     <text key="hud.tutorial">Tutorial</text>
     <text key="win.tutorial">Tutorial complete!</text>
@@ -77,10 +84,19 @@
     <text key="tutorial.pop">Touch the bubble with the enemy inside to pop it</text>
     <text key="tutorial.clear">Defeat all the enemies</text>
     <text key="tutorial.star">Now touch the star to finish the level</text>
+    <text key="menu.continue">Continue (level {level})</text>
+    <text key="menu.continue_tutorial">Continue (tutorial)</text>
+    <text key="play.title">New game</text>
+    <text key="play.start">Start (level {level})</text>
+    <text key="play.difficulty">Difficulty: {value}</text>
+    <text key="difficulty.easy">Easy</text>
+    <text key="difficulty.normal">Medium</text>
+    <text key="difficulty.hard">Hard</text>
+    <text key="common.back">Back</text>
   </language>
   <language code="fr" name="Français" flag="fr">
     <text key="menu.subtitle">Piégez les ennemis dans des bulles</text>
-    <text key="menu.play">Jouer (niveau {level})</text>
+    <text key="menu.play">Jouer</text>
     <text key="menu.scores">Records</text>
     <text key="menu.quit">Quitter</text>
     <text key="scores.title">Meilleurs scores</text>
@@ -100,7 +116,6 @@
     <text key="lost.points">Points : {score}</text>
     <text key="common.continue">Touchez pour continuer</text>
     <text key="player.default">Joueur</text>
-    <text key="menu.play_tutorial">Jouer (tutoriel)</text>
     <text key="menu.tutorial">Tutoriel</text>
     <text key="hud.tutorial">Tutoriel</text>
     <text key="win.tutorial">Tutoriel terminé !</text>
@@ -113,5 +128,14 @@
     <text key="tutorial.pop">Touchez la bulle qui contient l'ennemi pour l'éclater</text>
     <text key="tutorial.clear">Éliminez tous les ennemis</text>
     <text key="tutorial.star">Touchez maintenant l'étoile pour finir le niveau</text>
+    <text key="menu.continue">Continuer (niveau {level})</text>
+    <text key="menu.continue_tutorial">Continuer (tutoriel)</text>
+    <text key="play.title">Nouvelle partie</text>
+    <text key="play.start">Commencer (niveau {level})</text>
+    <text key="play.difficulty">Difficulté : {value}</text>
+    <text key="difficulty.easy">Facile</text>
+    <text key="difficulty.normal">Moyen</text>
+    <text key="difficulty.hard">Difficile</text>
+    <text key="common.back">Retour</text>
   </language>
 </translations>

@@ -9,6 +9,7 @@ import pygame
 
 from . import settings as S
 from . import translations
+from . import savegame
 from .controls import Controls, is_confirm, tap_position
 from . import levels
 from .translations import t
@@ -32,6 +33,10 @@ class Scene:
     def draw(self, surf):
         pass
 
+    def on_close(self):
+        """La app se cierra o pasa a segundo plano."""
+        pass
+
 
 class MenuScene(Scene):
     def __init__(self, app):
@@ -42,29 +47,19 @@ class MenuScene(Scene):
         self.t = 0.0
         self._build_buttons()
 
-    def _tutorial_pending(self) -> bool:
-        db = self.app.db
-        # Quien ya pasó del nivel 1 en versiones anteriores no necesita el tutorial
-        return db.get_setting("tutorial_done") is None and db.unlocked_level() <= 1
-
-    def _next_level_index(self) -> int:
-        if self._tutorial_pending():
-            return 0
-        number = max(1, self.app.db.unlocked_level())
-        return levels.index_of(number)
-
     def _build_buttons(self):
         """(Re)crea los botones con los textos del idioma activo."""
-        level = levels.LEVELS[self._next_level_index()]
-        play = (t("menu.play_tutorial") if level.tutorial
-                else t("menu.play", level=level.number))
-        self.buttons = [
-            ("play", Button((70, 340, 220, 56), play)),
-            ("tutorial", Button((70, 412, 220, 56), t("menu.tutorial"))),
-            ("scores", Button((70, 484, 220, 56), t("menu.scores"))),
-        ]
+        entries = []
+        saved = self.app.db.load_game()
+        if saved is not None:
+            label = (t("menu.continue_tutorial") if saved.get("tutorial")
+                     else t("menu.continue", level=saved.get("level_number", "?")))
+            entries.append(("continue", label))
+        entries += [("play", t("menu.play")), ("scores", t("menu.scores"))]
         if not IS_IOS:  # en iOS no se "sale" de una app
-            self.buttons.append(("quit", Button((70, 556, 220, 56), t("menu.quit"))))
+            entries.append(("quit", t("menu.quit")))
+        self.buttons = [(name, Button((50, 340 + i * 72, 260, 54), label))
+                        for i, (name, label) in enumerate(entries)]
         self.lang_button = FlagButton((S.LOGICAL_W - 66, S.LOGICAL_H - 52, 54, 38),
                                       translations.current().flag)
 
@@ -78,14 +73,27 @@ class MenuScene(Scene):
         self._build_buttons()
 
     def _activate(self, name):
-        if name == "play":
-            self.app.change_scene(GameScene(self.app, level_index=self._next_level_index()))
-        elif name == "tutorial":
-            self.app.change_scene(GameScene(self.app, level_index=0))
+        if name == "continue":
+            self._continue()
+        elif name == "play":
+            self.app.change_scene(PlayScene(self.app))
         elif name == "scores":
             self.app.change_scene(ScoresScene(self.app))
         elif name == "quit":
             self.app.quit()
+
+    def _continue(self):
+        data = self.app.db.load_game()
+        try:
+            world = savegame.restore(data) if data else None
+        except ValueError:
+            log.exception("No se pudo retomar la partida guardada; se descarta")
+            world = None
+        if world is None:
+            self.app.db.clear_game()
+            self._build_buttons()
+            return
+        self.app.change_scene(GameScene(self.app, world=world))
 
     def handle_event(self, event):
         pos = tap_position(event, self.app.display)
@@ -99,7 +107,8 @@ class MenuScene(Scene):
                     return
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_RETURN:
-                self._activate("play")
+                names = [name for name, _ in self.buttons]
+                self._activate("continue" if "continue" in names else "play")
             elif event.key == pygame.K_ESCAPE and not IS_IOS:
                 self.app.quit()
 
@@ -119,6 +128,86 @@ class MenuScene(Scene):
         for _, button in self.buttons:
             button.draw(surf, self.font)
         self.lang_button.draw(surf)
+
+
+def get_difficulty(db) -> str:
+    value = db.get_setting("difficulty", S.DEFAULT_DIFFICULTY)
+    return value if value in S.DIFFICULTIES else S.DEFAULT_DIFFICULTY
+
+
+class PlayScene(Scene):
+    """Pantalla previa a la partida: Empezar, Dificultad (Fácil/Medio/Difícil) y Tutorial."""
+
+    def __init__(self, app):
+        super().__init__(app)
+        self.title_font = pygame.font.Font(None, 56)
+        self.font = pygame.font.Font(None, 38)
+        self.small = pygame.font.Font(None, 24)
+        self._build_buttons()
+
+    def _next_level_index(self) -> int:
+        return levels.index_of(max(1, self.app.db.unlocked_level()))
+
+    def _build_buttons(self):
+        level = levels.LEVELS[self._next_level_index()]
+        difficulty = get_difficulty(self.app.db)
+        self.buttons = [
+            ("start", Button((50, 250, 260, 60), t("play.start", level=level.number))),
+            ("difficulty", Button((50, 330, 260, 60), t(
+                "play.difficulty", value=t(f"difficulty.{difficulty}")))),
+            ("tutorial", Button((50, 410, 260, 60), t("menu.tutorial"))),
+            ("back", Button((110, S.LOGICAL_H - 110, 140, 46), t("common.back"))),
+        ]
+
+    def _cycle_difficulty(self):
+        order = S.DIFFICULTY_ORDER
+        nxt = order[(order.index(get_difficulty(self.app.db)) + 1) % len(order)]
+        try:
+            self.app.db.set_setting("difficulty", nxt)
+        except sqlite3.Error:
+            log.error("No se pudo guardar la dificultad %s", nxt)
+        self._build_buttons()
+
+    def _start(self, level_index):
+        self.app.db.clear_game()  # empezar de nuevo descarta la partida guardada
+        self.app.change_scene(GameScene(self.app, level_index=level_index,
+                                        difficulty=get_difficulty(self.app.db)))
+
+    def _activate(self, name):
+        if name == "start":
+            self._start(self._next_level_index())
+        elif name == "difficulty":
+            self._cycle_difficulty()
+        elif name == "tutorial":
+            self._start(0)
+        elif name == "back":
+            self.app.change_scene(MenuScene(self.app))
+
+    def handle_event(self, event):
+        pos = tap_position(event, self.app.display)
+        if pos is not None:
+            for name, button in self.buttons:
+                if button.hit(pos):
+                    self._activate(name)
+                    return
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_RETURN:
+                self._activate("start")
+            elif event.key == pygame.K_ESCAPE:
+                self._activate("back")
+
+    def draw(self, surf):
+        surf.fill(S.BG)
+        draw_text(surf, self.title_font, t("play.title"), S.BUBBLE, center=(S.LOGICAL_W // 2, 150))
+        for name, button in self.buttons:
+            button.draw(surf, self.small if name == "back" else self.font)
+        # Indicador de dificultad: 1, 2 o 3 estrellas bajo el botón
+        stars = S.DIFFICULTY_ORDER.index(get_difficulty(self.app.db)) + 1
+        box = dict(self.buttons)["difficulty"].rect
+        for i in range(3):
+            cx = S.LOGICAL_W // 2 + (i - 1) * 22
+            color = S.STAR_YELLOW if i < stars else S.BUTTON
+            pygame.draw.circle(surf, color, (cx, box.bottom + 10), 5)
 
 
 class ScoresScene(Scene):
@@ -149,9 +238,12 @@ class ScoresScene(Scene):
 
 
 class GameScene(Scene):
-    def __init__(self, app, level_index=0, lives=S.START_LIVES, score=0):
+    def __init__(self, app, level_index=0, lives=None, score=0, world=None,
+                 difficulty=S.DEFAULT_DIFFICULTY):
         super().__init__(app)
-        self.world = World(level_index, lives, score)
+        if world is None:
+            world = World(level_index, lives, score, difficulty=difficulty)
+        self.world = world
         self.controls = Controls()
         self.hud = pygame.font.Font(None, 26)
         self.big = pygame.font.Font(None, 54)
@@ -166,9 +258,24 @@ class GameScene(Scene):
     def handle_event(self, event):
         self.controls.handle_event(event, self.app.display)
         if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+            self.save_progress()  # salir al menú también guarda, para poder continuar
             self.app.change_scene(MenuScene(self.app))
         elif self._overlay_visible() and is_confirm(event, self.app.display):
             self._advance()
+
+    def on_close(self):
+        self.save_progress()
+
+    def save_progress(self):
+        """Guarda la partida en la base de datos (o la borra si ya no hay nada que retomar)."""
+        try:
+            data = savegame.snapshot(self.world)
+            if data is None:
+                self.app.db.clear_game()
+            else:
+                self.app.db.save_game(data)
+        except sqlite3.Error:
+            log.exception("No se pudo guardar la partida")
 
     def _overlay_visible(self) -> bool:
         w = self.world
@@ -189,8 +296,10 @@ class GameScene(Scene):
             self.app.db.unlock_level(w.number + 1, levels.LEVELS[-1].number)
             if w.is_last_level and not w.tutorial:
                 self._save_score()
+            self.save_progress()  # queda guardado el inicio del siguiente nivel
         elif w.state == "lost" and not self.saved:
             self.saved = True
+            self.app.db.clear_game()  # partida perdida: no hay nada que continuar
             if not w.tutorial:
                 self._save_score()
 
@@ -202,9 +311,10 @@ class GameScene(Scene):
         w = self.world
         if w.state == "won" and not w.is_last_level:
             if w.tutorial:  # el tutorial es práctica: se empieza de cero
-                scene = GameScene(self.app, w.level_index + 1)
+                scene = GameScene(self.app, w.level_index + 1, difficulty=w.difficulty)
             else:
-                scene = GameScene(self.app, w.level_index + 1, w.lives, w.score)
+                scene = GameScene(self.app, w.level_index + 1, w.lives, w.score,
+                                  difficulty=w.difficulty)
             self.app.change_scene(scene)
         else:
             self.app.change_scene(MenuScene(self.app))

@@ -40,17 +40,57 @@ def test_flag_button_changes_and_saves_language(tmp_path):
     translations.set_language("es")
 
 
-def test_menu_starts_tutorial_first_then_level_one(tmp_path):
-    from orbes.scenes import MenuScene
+def test_menu_play_opens_play_screen_with_three_options(tmp_path):
+    from orbes.scenes import MenuScene, PlayScene
 
     app = App(db_path=tmp_path / "t.db")
     menu = MenuScene(app)
-    assert menu._next_level_index() == 0
+    names = [name for name, _ in menu.buttons]
+    assert "tutorial" not in names and names[0] == "play"
+    assert dict(menu.buttons)["play"].label == "Jugar"
     menu._activate("play")
-    game = app.scene
-    assert game.world.tutorial
+    play = app.scene
+    assert isinstance(play, PlayScene)
+    assert [n for n, _ in play.buttons] == ["start", "difficulty", "tutorial", "back"]
+    play._activate("back")
+    assert isinstance(app.scene, MenuScene)
+    app.db.close()
 
+
+def test_difficulty_cycles_saves_and_applies(tmp_path):
+    from orbes import settings as S
+    from orbes.scenes import GameScene, PlayScene
+
+    app = App(db_path=tmp_path / "t.db")
+    play = PlayScene(app)
+    assert "Medio" in dict(play.buttons)["difficulty"].label
+    seen = []
+    for _ in range(3):
+        play._activate("difficulty")
+        seen.append(app.db.get_setting("difficulty"))
+    assert seen == ["hard", "easy", "normal"]
+
+    play._activate("difficulty")
+    play._activate("difficulty")   # -> easy
+    assert "Fácil" in dict(play.buttons)["difficulty"].label
+    play._activate("start")
+    w = app.scene.world
+    assert isinstance(app.scene, GameScene)
+    assert w.number == 1 and w.difficulty == "easy"
+    assert w.lives == S.DIFFICULTIES["easy"]["lives"]
+    app.db.close()
+
+
+def test_tutorial_button_then_level_one_keeps_difficulty(tmp_path):
+    from orbes.scenes import PlayScene
+
+    app = App(db_path=tmp_path / "t.db")
+    app.db.set_setting("difficulty", "hard")
+    PlayScene(app)._activate("tutorial")
+    game = app.scene
     w = game.world
+    assert w.tutorial and w.difficulty == "hard"
+
     w.score = 1234
     for e in w.enemies:
         e.alive = False
@@ -58,10 +98,9 @@ def test_menu_starts_tutorial_first_then_level_one(tmp_path):
     w.player.place(*w.star.rect.topleft)
     game.update(1 / 60)
     assert w.state == "won"
-    assert app.db.get_setting("tutorial_done") == "1"
     assert app.db.top_scores() == []          # el tutorial no guarda puntuación
     game._advance()
-    assert app.scene.world.number == 1
-    assert app.scene.world.score == 0         # se empieza el nivel 1 de cero
-    assert MenuScene(app)._next_level_index() == 1
+    nxt = app.scene.world
+    assert nxt.number == 1 and nxt.score == 0 and nxt.difficulty == "hard"
+    assert PlayScene(app)._next_level_index() == 1
     app.db.close()

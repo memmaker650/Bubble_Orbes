@@ -17,6 +17,24 @@ def draw_text(surf, font, text, color, center=None, topleft=None):
     return rect
 
 
+_fonts: dict = {}
+
+
+def fit_font(font, text, max_width):
+    """La misma fuente o una más pequeña (fuente por defecto) para que el texto quepa."""
+    if font.size(text)[0] <= max_width:
+        return font
+    best = None
+    for size in range(60, 10, -2):  # la más grande que quepa sin superar a la original
+        smaller = _fonts.get(size)
+        if smaller is None:
+            smaller = _fonts[size] = pygame.font.Font(None, size)
+        best = smaller
+        if smaller.get_height() <= font.get_height() and smaller.size(text)[0] <= max_width:
+            return smaller
+    return best
+
+
 class Button:
     def __init__(self, rect, label):
         self.rect = pygame.Rect(rect)
@@ -28,7 +46,8 @@ class Button:
     def draw(self, surf, font):
         pygame.draw.rect(surf, S.BUTTON, self.rect, border_radius=14)
         pygame.draw.rect(surf, S.PLATFORM, self.rect, width=2, border_radius=14)
-        draw_text(surf, font, self.label, S.WHITE, center=self.rect.center)
+        draw_text(surf, fit_font(font, self.label, self.rect.width - 20), self.label, S.WHITE,
+                  center=self.rect.center)
 
 
 def wrap_text(font, text, max_width):

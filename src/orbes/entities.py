@@ -121,6 +121,7 @@ class Enemy(Body):
         self.attack = None       # None o fase del ataque en curso
         self.attack_t = 0.0      # tiempo en la fase actual
         self.cooldown = rng.uniform(0.5, 1.5)
+        self.cooldown_factor = 1.0   # lo ajusta la dificultad
 
     @property
     def attacking(self) -> bool:
@@ -181,7 +182,7 @@ class Enemy(Body):
 
     def _end_attack(self, cooldown):
         self.attack = None
-        self.cooldown = cooldown
+        self.cooldown = cooldown * self.cooldown_factor
 
 
 class TongueEnemy(Enemy):
@@ -241,7 +242,7 @@ class LaserEnemy(Enemy):
     @property
     def charge(self) -> float:
         """0 = recién disparado, 1 = energía completa."""
-        return 1.0 - self.cooldown / S.LASER_RECHARGE
+        return 1.0 - self.cooldown / (S.LASER_RECHARGE * self.cooldown_factor)
 
     def _start_attack(self, solids):
         self.attack = "windup" if S.LASER_WINDUP > 0 else "fire"

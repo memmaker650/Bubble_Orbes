@@ -1,5 +1,7 @@
-"""Persistencia con sqlite3: puntuaciones, ajustes y progreso."""
+"""Persistencia con sqlite3: puntuaciones, ajustes, progreso y partida guardada."""
 
+import json
+import logging
 import sqlite3
 from pathlib import Path
 
@@ -18,6 +20,18 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 PRAGMA user_version = 1;
 """
+
+# Una sola partida guardada (slot 1), como JSON con el estado completo del mundo.
+SCHEMA_V2 = """
+CREATE TABLE IF NOT EXISTS saved_game (
+    slot     INTEGER PRIMARY KEY CHECK (slot = 1),
+    data     TEXT    NOT NULL,
+    saved_at TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+PRAGMA user_version = 2;
+"""
+
+log = logging.getLogger(__name__)
 
 
 def default_db_path() -> Path:
@@ -42,7 +56,9 @@ class Database:
         version = self.conn.execute("PRAGMA user_version").fetchone()[0]
         if version < 1:
             self.conn.executescript(SCHEMA_V1)
-        # Futuras migraciones: if version < 2: ...
+        if version < 2:
+            self.conn.executescript(SCHEMA_V2)
+        # Futuras migraciones: if version < 3: ...
 
     def close(self):
         self.conn.close()
@@ -87,3 +103,31 @@ class Database:
         level = min(level, max_level)
         if level > self.unlocked_level():
             self.set_setting("unlocked_level", level)
+
+    # --- partida guardada ---
+    def save_game(self, data: dict) -> None:
+        with self.conn:
+            self.conn.execute(
+                "INSERT INTO saved_game (slot, data, saved_at) VALUES (1, ?, datetime('now')) "
+                "ON CONFLICT(slot) DO UPDATE SET data = excluded.data, saved_at = excluded.saved_at",
+                (json.dumps(data, ensure_ascii=False),),
+            )
+
+    def load_game(self) -> dict | None:
+        row = self.conn.execute("SELECT data FROM saved_game WHERE slot = 1").fetchone()
+        if row is None:
+            return None
+        try:
+            data = json.loads(row["data"])
+        except ValueError:
+            log.error("Partida guardada ilegible; se descarta")
+            self.clear_game()
+            return None
+        return data if isinstance(data, dict) else None
+
+    def has_saved_game(self) -> bool:
+        return self.load_game() is not None
+
+    def clear_game(self) -> None:
+        with self.conn:
+            self.conn.execute("DELETE FROM saved_game")
