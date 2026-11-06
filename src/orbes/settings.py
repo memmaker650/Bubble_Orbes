@@ -22,6 +22,18 @@ ENEMY_BASE_SPEED = 55.0
 ENEMY_SPEED_STEP = 12.0        # +velocidad por nivel
 ENEMY_ANGRY_FACTOR = 1.6
 
+# Enemigo rojo: lengua
+TONGUE_RANGE = 110             # longitud máxima de la lengua
+TONGUE_OUT = 0.18              # segundos en sacarla
+TONGUE_HOLD = 0.15             # segundos estirada
+TONGUE_IN = 0.2                # segundos en recogerla
+TONGUE_COOLDOWN = 1.5
+
+# Enemigo azul: láser por los ojos
+LASER_WINDUP = 0.35            # aviso (ojos brillando) antes de disparar; 0 = sin aviso
+LASER_DURATION = 1.0           # el rayo dura 1 s
+LASER_RECHARGE = 4.0           # y necesita 4 s para recargar
+
 # --- Burbujas ---
 BUBBLE_SIZE = 28
 BUBBLE_SPEED = 300.0
@@ -50,6 +62,9 @@ SOLID = (70, 80, 150)
 PLATFORM = (120, 140, 230)
 PLAYER = (80, 220, 140)
 ENEMY = (235, 90, 90)
+ENEMY_BLUE = (80, 130, 240)
+TONGUE = (255, 120, 170)
+LASER = (255, 40, 40)
 BUBBLE = (150, 210, 255)
 WHITE = (240, 240, 250)
 BLACK = (0, 0, 0)

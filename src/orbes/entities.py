@@ -100,6 +100,15 @@ class Player(Body):
 
 
 class Enemy(Body):
+    """Enemigo base: camina, salta al azar y ataca si ve al jugador delante y a su altura.
+
+    Las subclases definen el ataque con ``_start_attack``, ``_attack_step`` y ``attack_rect``.
+    """
+
+    kind = "base"
+    SIGHT = 0             # alcance de visión en píxeles
+    EYE_Y = 12            # altura de los ojos dentro del cuerpo
+
     def __init__(self, x, y, speed, rng):
         super().__init__(x + 6, y + 8, 28, 32)
         self.speed = speed
@@ -109,9 +118,46 @@ class Enemy(Body):
         self.alive = True
         self.angry = False
         self.jump_cd = rng.uniform(1.0, 3.0)
+        self.attack = None       # None o fase del ataque en curso
+        self.attack_t = 0.0      # tiempo en la fase actual
+        self.cooldown = rng.uniform(0.5, 1.5)
 
-    def update(self, dt, solids, oneway):
+    @property
+    def attacking(self) -> bool:
+        return self.attack is not None
+
+    def trap(self):
+        self.state = "trapped"
+        self.vx = self.vy = 0.0
+        self.attack = None
+
+    def release(self):
+        """Se escapa de la burbuja: vuelve a caminar, enfadado."""
+        self.state = "walk"
+        self.angry = True
+        self.vy = 0.0
+
+    def sees(self, target) -> bool:
+        """El objetivo está delante, a la altura de los ojos y dentro del alcance."""
+        eye_y = self.rect.y + self.EYE_Y
+        if not (target.top - 6 <= eye_y <= target.bottom + 6):
+            return False
+        dx = target.centerx - self.rect.centerx
+        return dx * self.direction > 0 and abs(dx) <= self.SIGHT
+
+    def update(self, dt, solids, oneway, target=None):
         if self.state != "walk":
+            return
+        self.cooldown = max(0.0, self.cooldown - dt)
+        if self.attack is None and self.cooldown <= 0 and self.coyote > 0 \
+                and target is not None and self.sees(target):
+            self.attack_t = 0.0
+            self._start_attack(solids)
+        if self.attack is not None:
+            self.vx = 0.0  # quieto mientras ataca
+            self.attack_t += dt
+            self._attack_step(solids)
+            self.physics(dt, solids, oneway)
             return
         speed = self.speed * (S.ENEMY_ANGRY_FACTOR if self.angry else 1.0)
         self.vx = self.direction * speed
@@ -122,6 +168,117 @@ class Enemy(Body):
             self.jump_cd = self.rng.uniform(1.5, 4.0)
         if self.physics(dt, solids, oneway):
             self.direction *= -1
+
+    def _start_attack(self, solids):
+        pass
+
+    def _attack_step(self, solids):
+        pass
+
+    def attack_rect(self):
+        """Zona que hace daño al jugador ahora mismo, o None."""
+        return None
+
+    def _end_attack(self, cooldown):
+        self.attack = None
+        self.cooldown = cooldown
+
+
+class TongueEnemy(Enemy):
+    """Rojo: saca una lengua larga hacia delante (sale, aguanta y se recoge)."""
+
+    kind = "tongue"
+    SIGHT = S.TONGUE_RANGE + 14
+    MOUTH_Y = 22
+
+    def _start_attack(self, solids):
+        self.attack = "tongue"
+
+    def _attack_step(self, solids):
+        if self.attack_t >= S.TONGUE_OUT + S.TONGUE_HOLD + S.TONGUE_IN:
+            self._end_attack(S.TONGUE_COOLDOWN)
+
+    @property
+    def tongue_length(self) -> float:
+        if self.attack != "tongue":
+            return 0.0
+        t = self.attack_t
+        if t < S.TONGUE_OUT:
+            k = t / S.TONGUE_OUT
+        elif t < S.TONGUE_OUT + S.TONGUE_HOLD:
+            k = 1.0
+        else:
+            k = max(0.0, 1.0 - (t - S.TONGUE_OUT - S.TONGUE_HOLD) / S.TONGUE_IN)
+        return S.TONGUE_RANGE * k
+
+    def mouth(self):
+        x = self.rect.right if self.direction > 0 else self.rect.left
+        return x, self.rect.y + self.MOUTH_Y
+
+    def attack_rect(self):
+        length = int(self.tongue_length)
+        if length <= 0:
+            return None
+        mx, my = self.mouth()
+        x = mx if self.direction > 0 else mx - length
+        return Rect(x, my - 5, length, 10)
+
+
+class LaserEnemy(Enemy):
+    """Azul: lanza un rayo láser por los ojos durante 1 s y luego recarga 4 s."""
+
+    kind = "laser"
+    SIGHT = S.FIELD_W
+
+    def __init__(self, x, y, speed, rng):
+        super().__init__(x, y, speed, rng)
+        self.beam_end = 0
+
+    @property
+    def charged(self) -> bool:
+        return self.cooldown <= 0
+
+    @property
+    def charge(self) -> float:
+        """0 = recién disparado, 1 = energía completa."""
+        return 1.0 - self.cooldown / S.LASER_RECHARGE
+
+    def _start_attack(self, solids):
+        self.attack = "windup" if S.LASER_WINDUP > 0 else "fire"
+        self._aim(solids)
+
+    def _attack_step(self, solids):
+        if self.attack == "windup" and self.attack_t >= S.LASER_WINDUP:
+            self.attack, self.attack_t = "fire", 0.0
+        elif self.attack == "fire":
+            self._aim(solids)
+            if self.attack_t >= S.LASER_DURATION:
+                self._end_attack(S.LASER_RECHARGE)
+
+    def eyes(self):
+        x = self.rect.right if self.direction > 0 else self.rect.left
+        return x, self.rect.y + self.EYE_Y
+
+    def _aim(self, solids):
+        """El rayo llega hasta el primer muro en la dirección en la que mira."""
+        ex, ey = self.eyes()
+        if self.direction > 0:
+            end = min((s.left for s in solids
+                       if s.top <= ey <= s.bottom and s.left >= ex), default=S.FIELD_W)
+        else:
+            end = max((s.right for s in solids
+                       if s.top <= ey <= s.bottom and s.right <= ex), default=0)
+        self.beam_end = end
+
+    def attack_rect(self):
+        if self.attack != "fire":
+            return None
+        ex, ey = self.eyes()
+        left, right = sorted((ex, self.beam_end))
+        return Rect(left, ey - 4, right - left, 8)
+
+
+ENEMY_TYPES = {"E": TongueEnemy, "B": LaserEnemy}
 
 
 class Bubble:

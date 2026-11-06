@@ -14,13 +14,13 @@ def step(world, n, actions=()):
 
 @pytest.mark.parametrize("i", range(len(LEVELS)))
 def test_levels_parse(i):
-    data = parse_level(LEVELS[i])
+    data = parse_level(LEVELS[i].rows)
     assert data.player_spawn is not None
     assert len(data.enemy_spawns) >= 1
 
 
 def test_player_stands_on_floor_and_jumps():
-    w = World(0, seed=1)
+    w = World(1, seed=1)
     step(w, 30)
     assert w.player.coyote > 0
     y0 = w.player.rect.y
@@ -32,7 +32,7 @@ def test_player_stands_on_floor_and_jumps():
 
 
 def test_player_can_reach_first_platform():
-    w = World(0, seed=1)
+    w = World(1, seed=1)
     p = w.player
     # En el suelo, justo bajo la plataforma de la fila 12 (columnas 1-2, x 40..120).
     p.place(60, (S.ROWS - 1) * S.TILE - p.rect.height)
@@ -45,7 +45,7 @@ def test_player_can_reach_first_platform():
 
 
 def test_bubble_traps_then_pop_scores():
-    w = World(0, seed=1)
+    w = World(1, seed=1)
     e = w.enemies[0]
     p = w.player
     e.place(p.rect.x + 90, p.rect.y)
@@ -64,7 +64,7 @@ def test_bubble_traps_then_pop_scores():
 
 
 def test_trapped_enemy_escapes_angry():
-    w = World(0, seed=1)
+    w = World(1, seed=1)
     e = w.enemies[0]
     e.place(w.player.rect.x + 90, w.player.rect.y)
     e.direction = 1
@@ -76,7 +76,7 @@ def test_trapped_enemy_escapes_angry():
 
 
 def test_enemy_contact_costs_life_then_game_over():
-    w = World(0, lives=2, seed=1)
+    w = World(1, lives=2, seed=1)
     e = w.enemies[0]
     e.place(*w.player.rect.topleft)
     step(w, 1)
@@ -88,12 +88,12 @@ def test_enemy_contact_costs_life_then_game_over():
 
 
 def test_every_level_has_star():
-    for rows in LEVELS:
-        assert parse_level(rows).star_pos is not None
+    for level in LEVELS:
+        assert parse_level(level.rows).star_pos is not None
 
 
 def test_clearing_enemies_alone_does_not_win():
-    w = World(0, seed=1)
+    w = World(1, seed=1)
     for e in w.enemies:
         e.alive = False
     step(w, 1)
@@ -102,7 +102,7 @@ def test_clearing_enemies_alone_does_not_win():
 
 
 def test_star_before_enemies_dead_shows_message():
-    w = World(0, seed=1)
+    w = World(1, seed=1)
     w.player.place(*w.star.rect.topleft)
     step(w, 1)
     assert w.state == "playing"
@@ -112,7 +112,7 @@ def test_star_before_enemies_dead_shows_message():
 
 
 def test_star_after_enemies_dead_wins_level():
-    w = World(0, seed=1)
+    w = World(1, seed=1)
     for e in w.enemies:
         e.alive = False
     step(w, 30)
@@ -126,7 +126,7 @@ def test_star_after_enemies_dead_wins_level():
 
 
 def test_star_is_reachable_from_top_platform():
-    w = World(0, seed=1)
+    w = World(1, seed=1)
     p = w.player
     for e in w.enemies:
         e.alive = False
@@ -136,3 +136,84 @@ def test_star_is_reachable_from_top_platform():
     step(w, 1, {"jump"})
     step(w, 40)
     assert w.state == "won"
+
+
+# --- tipos de enemigo ---
+from orbes.entities import LaserEnemy, TongueEnemy  # noqa: E402
+
+FLOOR_Y = (S.ROWS - 1) * S.TILE - 32
+
+
+def _duel(cls, gap):
+    """Mundo con un único enemigo en el suelo, a `gap` píxeles del jugador y mirándolo."""
+    w = World(1, seed=1)
+    w.enemies = [e for e in w.enemies if isinstance(e, cls)][:1]
+    e, p = w.enemies[0], w.player
+    p.place(60, FLOOR_Y)
+    e.place(60 + 28 + gap, FLOOR_Y)
+    e.direction = -1
+    e.cooldown = 0.0
+    e.jump_cd = 99
+    e.coyote = S.COYOTE_TIME
+    p.invuln = 0
+    return w, e, p
+
+
+def test_every_level_mixes_both_enemy_types():
+    for i in range(len(LEVELS)):
+        kinds = {e.kind for e in World(i, seed=1).enemies}
+        assert kinds == {"tongue", "laser"}
+
+
+def test_tongue_hits_player_at_range_without_touching():
+    w, e, p = _duel(TongueEnemy, gap=80)
+    lives = w.lives
+    assert e.rect.left - p.rect.right == 80    # separados: solo llega la lengua
+    step(w, 2)
+    assert e.attack == "tongue"
+    step(w, 15)
+    assert w.lives == lives - 1
+
+
+def test_tongue_does_not_attack_behind_or_far():
+    w, e, p = _duel(TongueEnemy, gap=80)
+    e.direction = 1          # mirando hacia el otro lado
+    step(w, 1)
+    assert e.attack is None
+    w, e, p = _duel(TongueEnemy, gap=200)
+    step(w, 1)
+    assert e.attack is None
+
+
+def test_laser_lasts_one_second_then_recharges_four():
+    w, e, p = _duel(LaserEnemy, gap=200)
+    p.invuln = 99            # observamos el ciclo sin perder vidas
+    step(w, 1)
+    assert e.attack == "windup"
+    step(w, int(S.LASER_WINDUP * 60) + 1)
+    assert e.attack == "fire"
+    beam = e.attack_rect()
+    assert beam.colliderect(p.rect) and beam.left <= S.TILE   # llega hasta el muro
+    step(w, 50)              # ~0.85 s disparando: sigue activo
+    assert e.attack == "fire"
+    step(w, 12)              # pasado 1 s: se apaga
+    assert e.attack is None and e.attack_rect() is None
+    assert abs(e.cooldown - S.LASER_RECHARGE) < 0.1
+    step(w, int(3.8 * 60))
+    assert e.attack is None  # sigue recargando aunque vea al jugador
+    step(w, 20)
+    assert e.attack is not None
+
+
+def test_laser_hits_player_across_room():
+    w, e, p = _duel(LaserEnemy, gap=200)
+    lives = w.lives
+    step(w, int((S.LASER_WINDUP + 0.1) * 60))
+    assert w.lives == lives - 1
+
+
+def test_trapping_cancels_attack():
+    w, e, p = _duel(LaserEnemy, gap=200)
+    step(w, int((S.LASER_WINDUP + 0.1) * 60))
+    e.trap()
+    assert e.attack is None and e.attack_rect() is None

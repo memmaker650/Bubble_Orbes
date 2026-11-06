@@ -3,8 +3,13 @@
 import random
 
 from . import settings as S
-from .entities import Bubble, Enemy, Player, Star
-from .levels import LEVELS, parse_level
+from .entities import ENEMY_TYPES, Bubble, Player, Star
+from . import levels
+from .levels import parse_level
+
+# Pasos del tutorial, en orden. Cada uno se completa con el evento del mismo nombre;
+# el texto de ayuda es la clave de traducción "tutorial.<paso>".
+TUTORIAL_STEPS = ("move", "jump", "bubble", "trap", "pop", "clear", "star")
 
 
 class World:
@@ -20,20 +25,45 @@ class World:
         self.message_timer = 0.0
         self._touching_star = False
         self._prev: set = set()
+        self.tutorial_done: set = set()   # pasos del tutorial ya hechos
         self.load_level()
+        if self.tutorial:
+            self.show_message("tutorial.safe")
 
     @property
     def is_last_level(self) -> bool:
-        return self.level_index >= len(LEVELS) - 1
+        return self.level_index >= len(levels.LEVELS) - 1
+
+    @property
+    def number(self) -> int:
+        """Número de nivel que ve el jugador (0 = tutorial)."""
+        return self.level.number
+
+    @property
+    def tutorial(self) -> bool:
+        return self.level.tutorial
+
+    @property
+    def tutorial_step(self) -> str | None:
+        """Paso del tutorial que toca ahora, o None si no es tutorial o ya terminó."""
+        if not self.tutorial or self.state != "playing":
+            return None
+        return next((s for s in TUTORIAL_STEPS if s not in self.tutorial_done), None)
+
+    def _tutorial_event(self, name):
+        if self.tutorial:
+            self.tutorial_done.add(name)
 
     def load_level(self):
-        data = parse_level(LEVELS[self.level_index])
+        self.level = levels.LEVELS[self.level_index]
+        data = parse_level(self.level.rows)
         self.solids = data.solids
         self.oneway = data.oneway
         self.spawn = data.player_spawn
         self.player = Player(*self.spawn)
-        speed = S.ENEMY_BASE_SPEED + S.ENEMY_SPEED_STEP * self.level_index
-        self.enemies = [Enemy(x, y, speed, self.rng) for x, y in data.enemy_spawns]
+        speed = S.ENEMY_BASE_SPEED + S.ENEMY_SPEED_STEP * max(0, self.number - 1)
+        self.enemies = [ENEMY_TYPES[kind](x, y, speed, self.rng)
+                        for x, y, kind in data.enemy_spawns]
         self.bubbles: list[Bubble] = []
         self.star = Star(*data.star_pos) if data.star_pos else None
 
@@ -61,13 +91,22 @@ class World:
 
         p = self.player
         p.update(dt, pressed, just, self.solids, self.oneway)
+        if pressed & {"left", "right"}:
+            self._tutorial_event("move")
+        if "jump" in just:
+            self._tutorial_event("jump")
         if "bubble" in just and p.shoot_cd <= 0:
             self._shoot()
+            self._tutorial_event("bubble")
+        # Sin objetivo los enemigos nunca inician un ataque (tutorial)
+        target = self.player.rect if self.level.enemies_attack else None
         for e in self.enemies:
             if e.alive:
-                e.update(dt, self.solids, self.oneway)
+                e.update(dt, self.solids, self.oneway, target)
         self._update_bubbles(dt)
         self._check_player_hit()
+        if self.enemies_left == 0:
+            self._tutorial_event("clear")
         if self.state == "playing":
             self._check_star()
 
@@ -104,8 +143,8 @@ class World:
             if b.state == "shot" and b.captured is None:
                 for e in self.enemies:
                     if e.alive and e.state == "walk" and b.rect.colliderect(e.rect):
-                        e.state = "trapped"
-                        e.vx = e.vy = 0.0
+                        e.trap()
+                        self._tutorial_event("trap")
                         b.captured = e
                         b.life = S.BUBBLE_ENEMY_LIFE
                         b._to_float()
@@ -119,6 +158,7 @@ class World:
     def _pop(self, b):
         if b.captured is not None:
             b.captured.alive = False
+            self._tutorial_event("pop")
             self.score += S.POINTS_ENEMY
         else:
             self.score += S.POINTS_BUBBLE
@@ -127,18 +167,19 @@ class World:
     def _expire(self, b):
         e = b.captured
         if e is not None:  # el enemigo se escapa, más rápido y enfadado
-            e.state = "walk"
-            e.angry = True
-            e.vy = 0.0
+            e.release()
         self.bubbles.remove(b)
 
     # --- daño ---
     def _check_player_hit(self):
         p = self.player
-        if p.invuln > 0:
+        if p.invuln > 0 or not self.level.enemies_attack:
             return
         for e in self.enemies:
-            if e.alive and e.state == "walk" and p.rect.colliderect(e.rect):
+            if not (e.alive and e.state == "walk"):
+                continue
+            attack = e.attack_rect()
+            if p.rect.colliderect(e.rect) or (attack is not None and p.rect.colliderect(attack)):
                 self.lives -= 1
                 if self.lives <= 0:
                     self.state = "lost"

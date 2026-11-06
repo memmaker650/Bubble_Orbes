@@ -29,7 +29,7 @@ def test_flag_button_changes_and_saves_language(tmp_path):
     menu.handle_event(event)
     assert translations.current().code == "en"
     assert app.db.get_setting("language") == "en"
-    assert menu.buttons[1][1].label == "High scores"
+    assert dict(menu.buttons)["scores"].label == "High scores"
     app.db.close()
     translations.set_language("es")
 
@@ -38,3 +38,30 @@ def test_flag_button_changes_and_saves_language(tmp_path):
     assert translations.current().code == "en"
     app.db.close()
     translations.set_language("es")
+
+
+def test_menu_starts_tutorial_first_then_level_one(tmp_path):
+    from orbes.scenes import MenuScene
+
+    app = App(db_path=tmp_path / "t.db")
+    menu = MenuScene(app)
+    assert menu._next_level_index() == 0
+    menu._activate("play")
+    game = app.scene
+    assert game.world.tutorial
+
+    w = game.world
+    w.score = 1234
+    for e in w.enemies:
+        e.alive = False
+    game.update(1 / 60)
+    w.player.place(*w.star.rect.topleft)
+    game.update(1 / 60)
+    assert w.state == "won"
+    assert app.db.get_setting("tutorial_done") == "1"
+    assert app.db.top_scores() == []          # el tutorial no guarda puntuación
+    game._advance()
+    assert app.scene.world.number == 1
+    assert app.scene.world.score == 0         # se empieza el nivel 1 de cero
+    assert MenuScene(app)._next_level_index() == 1
+    app.db.close()

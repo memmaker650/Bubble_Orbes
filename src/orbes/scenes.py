@@ -10,7 +10,7 @@ import pygame
 from . import settings as S
 from . import translations
 from .controls import Controls, is_confirm, tap_position
-from .levels import LEVELS
+from . import levels
 from .translations import t
 from .ui import Button, FlagButton, draw_message_box, draw_text
 from .world import World
@@ -42,15 +42,29 @@ class MenuScene(Scene):
         self.t = 0.0
         self._build_buttons()
 
+    def _tutorial_pending(self) -> bool:
+        db = self.app.db
+        # Quien ya pasó del nivel 1 en versiones anteriores no necesita el tutorial
+        return db.get_setting("tutorial_done") is None and db.unlocked_level() <= 1
+
+    def _next_level_index(self) -> int:
+        if self._tutorial_pending():
+            return 0
+        number = max(1, self.app.db.unlocked_level())
+        return levels.index_of(number)
+
     def _build_buttons(self):
         """(Re)crea los botones con los textos del idioma activo."""
-        level = self.app.db.unlocked_level()
+        level = levels.LEVELS[self._next_level_index()]
+        play = (t("menu.play_tutorial") if level.tutorial
+                else t("menu.play", level=level.number))
         self.buttons = [
-            ("play", Button((70, 340, 220, 56), t("menu.play", level=level))),
-            ("scores", Button((70, 412, 220, 56), t("menu.scores"))),
+            ("play", Button((70, 340, 220, 56), play)),
+            ("tutorial", Button((70, 412, 220, 56), t("menu.tutorial"))),
+            ("scores", Button((70, 484, 220, 56), t("menu.scores"))),
         ]
         if not IS_IOS:  # en iOS no se "sale" de una app
-            self.buttons.append(("quit", Button((70, 484, 220, 56), t("menu.quit"))))
+            self.buttons.append(("quit", Button((70, 556, 220, 56), t("menu.quit"))))
         self.lang_button = FlagButton((S.LOGICAL_W - 66, S.LOGICAL_H - 52, 54, 38),
                                       translations.current().flag)
 
@@ -65,8 +79,9 @@ class MenuScene(Scene):
 
     def _activate(self, name):
         if name == "play":
-            level = min(self.app.db.unlocked_level(), len(LEVELS)) - 1
-            self.app.change_scene(GameScene(self.app, level_index=level))
+            self.app.change_scene(GameScene(self.app, level_index=self._next_level_index()))
+        elif name == "tutorial":
+            self.app.change_scene(GameScene(self.app, level_index=0))
         elif name == "scores":
             self.app.change_scene(ScoresScene(self.app))
         elif name == "quit":
@@ -142,6 +157,7 @@ class GameScene(Scene):
         self.big = pygame.font.Font(None, 54)
         self.font = pygame.font.Font(None, 30)
         self.title = pygame.font.Font(None, 42)
+        self.small = pygame.font.Font(None, 22)
         self.saved = False
         self.t = 0.0
         self.won_t = 0.0         # tiempo desde que se completó el nivel
@@ -168,22 +184,28 @@ class GameScene(Scene):
             self.won_t += dt
         if w.state == "won" and not self.saved:
             self.saved = True
-            self.app.db.unlock_level(w.level_index + 2, len(LEVELS))
-            if w.is_last_level:
+            if w.tutorial:
+                self.app.db.set_setting("tutorial_done", 1)
+            self.app.db.unlock_level(w.number + 1, levels.LEVELS[-1].number)
+            if w.is_last_level and not w.tutorial:
                 self._save_score()
         elif w.state == "lost" and not self.saved:
             self.saved = True
-            self._save_score()
+            if not w.tutorial:
+                self._save_score()
 
     def _save_score(self):
         name = self.app.db.get_setting("player_name", t("player.default"))
-        self.app.db.add_score(name, self.world.score, self.world.level_index + 1)
+        self.app.db.add_score(name, self.world.score, self.world.number)
 
     def _advance(self):
         w = self.world
         if w.state == "won" and not w.is_last_level:
-            self.app.change_scene(
-                GameScene(self.app, w.level_index + 1, w.lives, w.score))
+            if w.tutorial:  # el tutorial es práctica: se empieza de cero
+                scene = GameScene(self.app, w.level_index + 1)
+            else:
+                scene = GameScene(self.app, w.level_index + 1, w.lives, w.score)
+            self.app.change_scene(scene)
         else:
             self.app.change_scene(MenuScene(self.app))
 
@@ -206,18 +228,27 @@ class GameScene(Scene):
         self._draw_player(surf, w.player)
 
         draw_text(surf, self.hud, t("hud.score", score=w.score), S.WHITE, topleft=(10, 10))
-        draw_text(surf, self.hud, t("hud.level", level=w.level_index + 1), S.WHITE,
+        level = t("hud.tutorial") if w.tutorial else t("hud.level", level=w.number)
+        draw_text(surf, self.hud, level, S.WHITE,
                   center=(S.LOGICAL_W // 2, 20))
         draw_text(surf, self.hud, t("hud.lives", lives=w.lives), S.WHITE, topleft=(S.LOGICAL_W - 90, 10))
 
         pygame.draw.rect(surf, (10, 12, 26), (0, S.FIELD_H, S.LOGICAL_W, S.LOGICAL_H - S.FIELD_H))
         self.controls.draw(surf, self.controls.actions())
 
+        if w.tutorial_step is not None:
+            self._draw_tutorial_hint(surf, w.tutorial_step)
         if w.message_timer > 0 and w.state == "playing":
             draw_message_box(surf, [(self.font, t(w.message), S.WHITE)],
                              center=(S.LOGICAL_W // 2, S.FIELD_H // 2), accent=S.STAR_YELLOW)
         if self._overlay_visible():
             self._draw_overlay(surf)
+
+    def _draw_tutorial_hint(self, surf, step):
+        keys = "" if IS_IOS else " (Z)"
+        draw_message_box(surf, [(self.small, t(f"tutorial.{step}", keys=keys), S.STAR_YELLOW)],
+                         center=(S.LOGICAL_W // 2, S.FIELD_H - 20), width=340,
+                         padding=8, accent=S.STAR_YELLOW)
 
     def _draw_star(self, surf, w):
         star = w.star
@@ -239,11 +270,58 @@ class GameScene(Scene):
         pygame.draw.circle(surf, S.BLACK, (ex + p.facing * 2, p.rect.y + 12), 2)
 
     def _draw_enemy(self, surf, e):
-        color = (255, 60, 60) if e.angry else S.ENEMY
+        if e.kind == "laser":
+            color = (40, 90, 255) if e.angry else S.ENEMY_BLUE
+        else:
+            color = (255, 60, 60) if e.angry else S.ENEMY
         pygame.draw.rect(surf, color, e.rect, border_radius=8)
+        if e.kind == "tongue":
+            self._draw_tongue(surf, e)
+        look = e.direction * 2  # las pupilas miran hacia donde camina
         for dx in (-6, 6):
-            pygame.draw.circle(surf, S.WHITE, (e.rect.centerx + dx, e.rect.y + 12), 4)
-            pygame.draw.circle(surf, S.BLACK, (e.rect.centerx + dx, e.rect.y + 12), 2)
+            eye = (e.rect.centerx + dx, e.rect.y + e.EYE_Y)
+            pygame.draw.circle(surf, S.WHITE, eye, 4)
+            pupil = (eye[0] + look, eye[1])
+            if e.kind == "laser":
+                self._draw_laser_eye(surf, e, pupil)
+            else:
+                pygame.draw.circle(surf, S.BLACK, pupil, 2)
+        if e.kind == "laser" and e.attack == "fire":
+            self._draw_laser(surf, e)
+
+    def _draw_tongue(self, surf, e):
+        rect = e.attack_rect()
+        mx, my = e.mouth()
+        if rect is None:
+            pygame.draw.line(surf, S.BLACK, (mx - e.direction * 8, my), (mx - e.direction * 2, my), 2)
+            return
+        tip = (mx + e.direction * int(e.tongue_length), my)
+        pygame.draw.line(surf, S.TONGUE, (mx - e.direction * 4, my), tip, 6)
+        pygame.draw.circle(surf, S.TONGUE, tip, 7)
+        pygame.draw.circle(surf, (200, 60, 110), tip, 7, 2)
+
+    def _draw_laser_eye(self, surf, e, pupil):
+        if e.attack is not None:  # cargando o disparando: ojos al rojo vivo
+            glow = 3 + int(2 * abs(math.sin(self.t * 20)))
+            pygame.draw.circle(surf, S.LASER, pupil, glow)
+        else:  # el color indica la energía: gris (vacío) -> rojo (cargado)
+            k = max(0.0, min(1.0, e.charge))
+            col = tuple(int(90 + (c - 90) * k) for c in S.LASER)
+            pygame.draw.circle(surf, col, pupil, 2)
+
+    def _draw_laser(self, surf, e):
+        rect = e.attack_rect()
+        if rect is None:
+            return
+        halo = rect.inflate(0, 8)
+        layer = pygame.Surface(halo.size, pygame.SRCALPHA)
+        flicker = int(40 * abs(math.sin(self.t * 30)))
+        pygame.draw.rect(layer, (*S.LASER, 70 + flicker), layer.get_rect(), border_radius=6)
+        surf.blit(layer, halo.topleft)
+        ey = rect.centery
+        for dy in (-3, 3):  # un rayo por cada ojo
+            pygame.draw.line(surf, S.LASER, (rect.left, ey + dy), (rect.right, ey + dy), 3)
+        pygame.draw.line(surf, (255, 200, 200), (rect.left, ey), (rect.right, ey), 1)
 
     def _draw_bubble(self, surf, b):
         if b.captured is not None:
@@ -262,9 +340,13 @@ class GameScene(Scene):
         center = (S.LOGICAL_W // 2, S.FIELD_H // 2)
         if w.state == "won":
             minutes, seconds = divmod(int(w.elapsed), 60)
-            rows = [(self.title, t("win.title", level=w.level_index + 1), S.STAR_BLUE)]
-            if w.is_last_level:
-                rows.append((self.font, t("win.game"), S.STAR_YELLOW))
+            if w.tutorial:
+                rows = [(self.title, t("win.tutorial"), S.STAR_BLUE),
+                        (self.font, t("win.next"), S.STAR_YELLOW)]
+            else:
+                rows = [(self.title, t("win.title", level=w.number), S.STAR_BLUE)]
+                if w.is_last_level:
+                    rows.append((self.font, t("win.game"), S.STAR_YELLOW))
             rows += [
                 (self.font, t("win.time", time=f"{minutes:02d}:{seconds:02d}"), S.WHITE),
                 (self.font, t("win.points", points=w.level_points), S.WHITE),
