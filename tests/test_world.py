@@ -87,10 +87,52 @@ def test_enemy_contact_costs_life_then_game_over():
     assert w.state == "lost"
 
 
-def test_clearing_all_enemies_wins_level():
+def test_every_level_has_star():
+    for rows in LEVELS:
+        assert parse_level(rows).star_pos is not None
+
+
+def test_clearing_enemies_alone_does_not_win():
     w = World(0, seed=1)
     for e in w.enemies:
         e.alive = False
     step(w, 1)
+    assert w.state == "playing"
+    assert not w.star.lit
+
+
+def test_star_before_enemies_dead_shows_message():
+    w = World(0, seed=1)
+    w.player.place(*w.star.rect.topleft)
+    step(w, 1)
+    assert w.state == "playing"
+    assert not w.star.lit
+    assert w.message_timer > 0
+    assert w.message == "star.kill_all"
+
+
+def test_star_after_enemies_dead_wins_level():
+    w = World(0, seed=1)
+    for e in w.enemies:
+        e.alive = False
+    step(w, 30)
+    w.player.place(*w.star.rect.topleft)
+    step(w, 1)
     assert w.state == "won"
+    assert w.star.lit
     assert w.score == S.POINTS_LEVEL
+    assert w.level_points == S.POINTS_LEVEL
+    assert w.elapsed > 0.4
+
+
+def test_star_is_reachable_from_top_platform():
+    w = World(0, seed=1)
+    p = w.player
+    for e in w.enemies:
+        e.alive = False
+    # De pie sobre la plataforma de la fila 3, bajo la estrella.
+    p.place(w.star.rect.centerx - p.rect.width // 2, 3 * S.TILE - p.rect.height)
+    step(w, 5)
+    step(w, 1, {"jump"})
+    step(w, 40)
+    assert w.state == "won"

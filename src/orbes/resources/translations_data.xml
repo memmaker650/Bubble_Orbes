@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Textos de la interfaz. Un bloque <language> por idioma; el atributo "code" es el que se
+  guarda en los ajustes y "flag" indica qué bandera se dibuja en el menú (ver flags.py).
+  Los textos admiten marcadores {nombre} que se rellenan desde el código.
+  El orden de los bloques es el orden en que se recorren al pulsar la bandera.
+-->
+<translations default="es">
+  <language code="es" name="Español" flag="es">
+    <text key="menu.subtitle">Atrapa enemigos en burbujas y revienta</text>
+    <text key="menu.play">Jugar (nivel {level})</text>
+    <text key="menu.scores">Puntuaciones</text>
+    <text key="menu.quit">Salir</text>
+    <text key="scores.title">Puntuaciones</text>
+    <text key="scores.empty">Aún no hay partidas</text>
+    <text key="scores.back">Toca para volver</text>
+    <text key="scores.level">N{level}</text>
+    <text key="hud.score">Puntos {score}</text>
+    <text key="hud.level">Nivel {level}</text>
+    <text key="hud.lives">Vidas {lives}</text>
+    <text key="star.kill_all">Mata a todos los enemigos para terminar el nivel</text>
+    <text key="win.title">Nivel {level} completado</text>
+    <text key="win.game">¡Has ganado el juego!</text>
+    <text key="win.time">Tiempo: {time}</text>
+    <text key="win.points">Puntos conseguidos: {points}</text>
+    <text key="win.total">Total: {score}</text>
+    <text key="lost.title">Fin de la partida</text>
+    <text key="lost.points">Puntos: {score}</text>
+    <text key="common.continue">Toca para continuar</text>
+    <text key="player.default">Jugador</text>
+  </language>
+  <language code="en" name="English" flag="uk">
+    <text key="menu.subtitle">Trap enemies in bubbles and pop them</text>
+    <text key="menu.play">Play (level {level})</text>
+    <text key="menu.scores">High scores</text>
+    <text key="menu.quit">Quit</text>
+    <text key="scores.title">High scores</text>
+    <text key="scores.empty">No games played yet</text>
+    <text key="scores.back">Tap to go back</text>
+    <text key="scores.level">L{level}</text>
+    <text key="hud.score">Score {score}</text>
+    <text key="hud.level">Level {level}</text>
+    <text key="hud.lives">Lives {lives}</text>
+    <text key="star.kill_all">Defeat all the enemies to finish the level</text>
+    <text key="win.title">Level {level} complete</text>
+    <text key="win.game">You beat the game!</text>
+    <text key="win.time">Time: {time}</text>
+    <text key="win.points">Points earned: {points}</text>
+    <text key="win.total">Total: {score}</text>
+    <text key="lost.title">Game over</text>
+    <text key="lost.points">Score: {score}</text>
+    <text key="common.continue">Tap to continue</text>
+    <text key="player.default">Player</text>
+  </language>
+  <language code="fr" name="Français" flag="fr">
+    <text key="menu.subtitle">Piégez les ennemis dans des bulles</text>
+    <text key="menu.play">Jouer (niveau {level})</text>
+    <text key="menu.scores">Records</text>
+    <text key="menu.quit">Quitter</text>
+    <text key="scores.title">Meilleurs scores</text>
+    <text key="scores.empty">Aucune partie jouée</text>
+    <text key="scores.back">Touchez pour revenir</text>
+    <text key="scores.level">N{level}</text>
+    <text key="hud.score">Points {score}</text>
+    <text key="hud.level">Niveau {level}</text>
+    <text key="hud.lives">Vies {lives}</text>
+    <text key="star.kill_all">Éliminez tous les ennemis pour terminer le niveau</text>
+    <text key="win.title">Niveau {level} terminé</text>
+    <text key="win.game">Vous avez gagné la partie !</text>
+    <text key="win.time">Temps : {time}</text>
+    <text key="win.points">Points gagnés : {points}</text>
+    <text key="win.total">Total : {score}</text>
+    <text key="lost.title">Partie terminée</text>
+    <text key="lost.points">Points : {score}</text>
+    <text key="common.continue">Touchez pour continuer</text>
+    <text key="player.default">Joueur</text>
+  </language>
+</translations>

@@ -32,6 +32,11 @@ BUBBLE_ENEMY_LIFE = 7.0
 BUBBLE_ARM_TIME = 0.25         # tiempo antes de poder reventarla
 SHOOT_COOLDOWN = 0.3
 
+# --- Estrella de fin de nivel ---
+STAR_SIZE = 30
+STAR_DELAY = 0.8               # segundos viendo la estrella azul antes del mensaje
+MESSAGE_TIME = 2.5             # duración de los avisos en pantalla
+
 # --- Reglas ---
 START_LIVES = 3
 INVULN_TIME = 2.0
@@ -49,3 +54,6 @@ BUBBLE = (150, 210, 255)
 WHITE = (240, 240, 250)
 BLACK = (0, 0, 0)
 BUTTON = (50, 60, 120)
+STAR_YELLOW = (255, 215, 40)
+STAR_BLUE = (60, 140, 255)
+PANEL = (28, 32, 70)

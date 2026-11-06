@@ -2,6 +2,7 @@
 
   #  muro sólido        =  plataforma (se puede atravesar saltando desde abajo)
   P  inicio del jugador E  enemigo
+  S  estrella de fin de nivel
 """
 
 from dataclasses import dataclass
@@ -12,7 +13,7 @@ from . import settings as S
 
 _BASE = [
     "#########",
-    "#       #",
+    "#   S   #",
     "#{r2}#",
     "# ===== #",
     "#       #",
@@ -47,12 +48,13 @@ class LevelData:
     oneway: list
     player_spawn: tuple
     enemy_spawns: list
+    star_pos: tuple | None = None
 
 
 def parse_level(rows) -> LevelData:
     if len(rows) != S.ROWS:
         raise ValueError(f"El nivel debe tener {S.ROWS} filas, tiene {len(rows)}")
-    solids, oneway, enemies, spawn = [], [], [], None
+    solids, oneway, enemies, spawn, star = [], [], [], None, None
     for r, row in enumerate(rows):
         if len(row) != S.COLS:
             raise ValueError(f"Fila {r}: debe tener {S.COLS} columnas")
@@ -66,6 +68,8 @@ def parse_level(rows) -> LevelData:
                 spawn = (x, y)
             elif ch == "E":
                 enemies.append((x, y))
+            elif ch == "S":
+                star = (x, y)
     if spawn is None:
         raise ValueError("El nivel no tiene inicio de jugador 'P'")
-    return LevelData(solids, oneway, spawn, enemies)
+    return LevelData(solids, oneway, spawn, enemies, star)

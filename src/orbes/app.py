@@ -3,6 +3,7 @@
 import pygame
 
 from . import settings as S
+from . import translations
 from .db import Database, default_db_path
 from .display import Display
 from .scenes import MenuScene
@@ -14,6 +15,8 @@ class App:
         pygame.display.set_caption("Orbes")
         self.display = Display()
         self.db = Database(db_path or default_db_path())
+        translations.load()
+        translations.set_language(self.db.get_setting("language", translations.current().code))
         self.clock = pygame.time.Clock()
         self.running = True
         self.scene = MenuScene(self)

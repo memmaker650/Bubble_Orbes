@@ -167,3 +167,25 @@ class Bubble:
             self.life -= dt
         if self.captured is not None:
             self.captured.center_on(self.rect.center)
+
+
+class Star:
+    """Estrella de 5 puntas: al tocarla con todos los enemigos muertos se vuelve azul."""
+
+    def __init__(self, x, y):
+        s = S.STAR_SIZE
+        self.rect = Rect(0, 0, s, s)
+        self.rect.center = (x + S.TILE // 2, y + S.TILE // 2)
+        self.lit = False         # False = amarilla, True = azul (nivel terminado)
+
+    def points(self, scale=1.0):
+        """Vértices del polígono de la estrella (10 puntos alternando radio exterior/interior)."""
+        cx, cy = self.rect.center
+        outer = self.rect.width / 2 * scale
+        inner = outer * 0.45
+        pts = []
+        for i in range(10):
+            r = outer if i % 2 == 0 else inner
+            a = -math.pi / 2 + i * math.pi / 5
+            pts.append((cx + r * math.cos(a), cy + r * math.sin(a)))
+        return pts
