@@ -37,9 +37,20 @@ def _apply(obj, data, names):
     obj.rect.topleft = (round(obj.fx), round(obj.fy))
 
 
+def _player_data(w: World) -> dict:
+    p = w.player
+    data = {**_fields(p, _BODY), "facing": p.facing, "shoot_cd": p.shoot_cd, "invuln": p.invuln}
+    if w.state == "dying":
+        # Se cerró durante la animación de muerte (y le quedan vidas): se guarda como si
+        # ya hubiera reaparecido en el inicio.
+        x, y = w.spawn[0] + 6, w.spawn[1] + 8
+        data.update(fx=float(x), fy=float(y), vx=0.0, vy=0.0, invuln=S.INVULN_TIME)
+    return data
+
+
 def snapshot(w: World) -> dict | None:
     """Estado a guardar, o None si no hay nada que retomar (partida perdida o juego terminado)."""
-    if w.state == "lost":
+    if w.state == "lost" or (w.state == "dying" and w.lives <= 0):
         return None
     if w.state == "won":
         # Nivel terminado: se retoma al principio del siguiente
@@ -76,8 +87,7 @@ def snapshot(w: World) -> dict | None:
         "tutorial_done": sorted(w.tutorial_done),
         "touching_star": w._touching_star,
         "star_lit": w.star.lit if w.star is not None else False,
-        "player": {**_fields(p, _BODY), "facing": p.facing,
-                   "shoot_cd": p.shoot_cd, "invuln": p.invuln},
+        "player": _player_data(w),
         "enemies": enemies,
         "bubbles": bubbles,
     }

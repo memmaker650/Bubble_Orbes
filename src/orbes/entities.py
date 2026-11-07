@@ -104,11 +104,14 @@ class Player(Body):
         self.facing = 1
         self.shoot_cd = 0.0
         self.invuln = 0.0
+        self.dead = False          # animación de muerte en curso
+        self.landed_dead = False   # ya ha caído tumbado al suelo
 
     def respawn(self, spawn):
         self.place(spawn[0] + 6, spawn[1] + 8)
         self.vx = self.vy = 0.0
         self.invuln = S.INVULN_TIME
+        self.dead = self.landed_dead = False
 
     def update(self, dt, pressed, just, solids, oneway):
         dirx = ("right" in pressed) - ("left" in pressed)
@@ -372,3 +375,31 @@ class Star:
             a = -math.pi / 2 + i * math.pi / 5
             pts.append((cx + r * math.cos(a), cy + r * math.sin(a)))
         return pts
+
+
+class Ghost:
+    """Enemigo eliminado: con ojos en cruz y alas, sube hasta salir por arriba de la pantalla.
+
+    Es solo un efecto visual: no choca con nada ni cuenta como enemigo vivo.
+    """
+
+    def __init__(self, enemy):
+        self.rect = enemy.rect.copy()
+        self.fx, self.fy = float(self.rect.x), float(self.rect.y)
+        self.kind = enemy.kind
+        self.angry = enemy.angry
+        self.direction = enemy.direction
+        self.vy = S.GHOST_RISE_START
+        self.t = 0.0
+
+    def update(self, dt):
+        self.t += dt
+        self.vy = min(self.vy + S.GHOST_RISE_ACCEL * dt, S.GHOST_RISE_MAX)
+        self.fy -= self.vy * dt
+        self.fx += math.sin(self.t * 4) * 25 * dt   # leve vaivén al subir
+        self.rect.topleft = (round(self.fx), round(self.fy))
+
+    @property
+    def gone(self) -> bool:
+        """Ya ha salido por el borde superior de la pantalla (por encima del marcador)."""
+        return self.rect.bottom + 12 < -S.HUD_H

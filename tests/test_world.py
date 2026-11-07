@@ -76,15 +76,27 @@ def test_trapped_enemy_escapes_angry():
     assert e.state == "walk" and e.angry and not w.bubbles
 
 
+def _until_not_dying(w, limit=600):
+    for _ in range(limit):
+        if w.state != "dying":
+            return
+        step(w, 1)
+    raise AssertionError("la animación de muerte no termina")
+
+
 def test_enemy_contact_costs_life_then_game_over():
     w = World(1, lives=2, seed=1)
     e = w.enemies[0]
     e.place(*w.player.rect.topleft)
     step(w, 1)
-    assert w.lives == 1 and w.player.invuln > 0
+    assert w.lives == 1 and w.state == "dying"     # animación de muerte antes de reaparecer
+    _until_not_dying(w)
+    assert w.state == "playing" and w.player.invuln > 0 and not w.player.dead
     w.player.invuln = 0
     e.place(*w.player.rect.topleft)
     step(w, 1)
+    assert w.lives == 0 and w.state == "dying"
+    _until_not_dying(w)
     assert w.state == "lost"
 
 
@@ -409,3 +421,94 @@ def test_celebration_has_time_limit():
     p.physics = lambda *a: False                # "nunca" llega al suelo
     step(w, int(S.CELEBRATE_MAX * 60) + 2)
     assert w.celebration_done
+
+
+
+# --- animaciones de muerte ---
+from orbes.entities import Ghost  # noqa: E402
+
+
+def test_popped_enemy_becomes_ghost_that_rises_off_screen():
+    w = World(1, seed=1)
+    e = w.enemies[0]
+    b = Bubble(*w.player.rect.center, 1)
+    e.trap()
+    b.captured = e
+    b._to_float()
+    b.age = 1.0
+    w.bubbles = [b]
+    w._pop(b)
+    assert not e.alive and len(w.ghosts) == 1
+    g = w.ghosts[0]
+    assert g.kind == e.kind and g.rect.topleft == e.rect.topleft
+    y0 = g.rect.y
+    step(w, 30)
+    assert g.rect.y < y0                            # sube
+    assert w.enemies_left == len(w.enemies) - 1     # no cuenta como enemigo vivo
+    for _ in range(60 * 10):
+        step(w, 1)
+        if not w.ghosts:
+            break
+    assert not w.ghosts                             # salió por arriba y se eliminó
+    assert g.rect.bottom < -S.HUD_H                 # ...por encima del marcador
+
+
+def test_ghost_accelerates_up_to_max_speed():
+    import random
+    from orbes.entities import TongueEnemy
+    g = Ghost(TongueEnemy(100, 400, 50, random.Random(1)))
+    g.update(0.1)
+    v1 = g.vy
+    for _ in range(200):
+        g.update(0.05)
+    assert S.GHOST_RISE_START < v1 < g.vy == S.GHOST_RISE_MAX
+
+
+def test_ghosts_do_not_block_finishing_level():
+    w = World(1, seed=1)
+    for e in w.enemies:
+        w.ghosts.append(Ghost(e))
+        e.alive = False
+    w.player.place(*w.star.rect.topleft)
+    step(w, 1)
+    assert w.state == "won"
+    step(w, 10)
+    assert w.ghosts                                 # siguen subiendo durante la celebración
+
+
+def test_player_killed_in_air_falls_and_lies_on_floor():
+    w = World(1, lives=3, seed=1)
+    p = w.player
+    p.place(S.cell_pos(4, 11)[0], S.cell_pos(0, 11)[1])   # en el aire, en mitad del nivel
+    p.vy = -300.0
+    w.enemies[0].place(*p.rect.topleft)
+    step(w, 1)
+    assert w.state == "dying" and p.dead and not p.landed_dead
+    others = [(e.rect.topleft) for e in w.enemies]
+    for _ in range(300):
+        step(w, 1)
+        if p.landed_dead:
+            break
+    assert p.landed_dead and w.player_down
+    assert p.rect.bottom in (S.FLOOR_Y, S.cell_pos(0, 13)[1])   # en el suelo o plataforma
+    assert [e.rect.topleft for e in w.enemies] == others        # la acción está detenida
+    x, y = p.rect.topleft
+    step(w, int(S.DEATH_TIME * 60) - 5)
+    assert w.state == "dying" and p.rect.topleft == (x, y)       # sigue tumbado
+    step(w, 10)
+    assert w.state == "playing" and not p.dead and p.invuln > 0
+
+
+def test_closing_during_death_saves_respawned_or_nothing():
+    from orbes import savegame
+    w = World(1, lives=2, seed=1)
+    w.enemies[0].place(*w.player.rect.topleft)
+    step(w, 1)
+    assert w.state == "dying"
+    data = savegame.snapshot(w)
+    r = savegame.restore(data)
+    assert r.state == "playing" and r.lives == 1 and not r.player.dead
+    assert r.player.rect.topleft == (w.spawn[0] + 6, w.spawn[1] + 8)
+
+    w.lives = 0
+    assert savegame.snapshot(w) is None

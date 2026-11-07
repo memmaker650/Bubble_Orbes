@@ -65,6 +65,15 @@ DIFFICULTIES = {
 DIFFICULTY_ORDER = ("easy", "normal", "hard")
 DEFAULT_DIFFICULTY = "normal"
 
+# --- Animaciones de muerte ---
+GHOST_ALPHA = 153              # enemigo eliminado: 60 % de opacidad (153 de 255)
+GHOST_WING_SCALE = 1.25        # tamaño de las alas (1.0 = tamaño original)
+GHOST_RISE_START = 40.0        # sube despacio al principio...
+GHOST_RISE_ACCEL = 160.0
+GHOST_RISE_MAX = 260.0         # ...y acelera hasta esta velocidad (px/s)
+DEATH_TIP_TIME = 0.2           # el jugador tarda esto en caer tumbado al hacer pie
+DEATH_TIME = 1.6               # tiempo tumbado antes de reaparecer o de fin de partida
+
 # --- Estrella de fin de nivel ---
 STAR_SIZE = 30
 CELEBRATE_TIME = 1.8           # segundos celebrando (ya en el suelo) antes del mensaje
@@ -89,6 +98,8 @@ PLATFORM = (120, 140, 230)
 PLAYER = (80, 220, 140)
 PLAYER_DARK = (40, 150, 90)
 PLAYER_TONGUE = (225, 40, 55)
+WING = (235, 240, 255)
+WING_EDGE = (150, 180, 230)
 ENEMY = (235, 90, 90)
 ENEMY_BLUE = (80, 130, 240)
 TONGUE = (255, 120, 170)

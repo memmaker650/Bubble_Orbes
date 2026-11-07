@@ -123,3 +123,21 @@ def test_celebration_draws_and_overlay_appears_after(tmp_path):
         game.draw(app.display.surface)       # dibuja caída, celebración y ventana
     assert w.celebrating and game._overlay_visible()
     app.db.close()
+
+
+def test_death_animations_draw(tmp_path):
+    from orbes.entities import Ghost
+    from orbes.scenes import GameScene
+
+    app = App(db_path=tmp_path / "t.db")
+    game = GameScene(app, level_index=1, lives=1)
+    w = game.world
+    w.ghosts.append(Ghost(w.enemies[1]))
+    w.enemies[1].alive = False
+    w.enemies[0].place(*w.player.rect.topleft)
+    for _ in range(int(4 * 60)):
+        game.update(1 / 60)
+        game.draw(app.display.surface)
+    assert w.state == "lost" and game._overlay_visible()
+    assert not app.db.has_saved_game()
+    app.db.close()

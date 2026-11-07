@@ -339,6 +339,9 @@ class GameScene(Scene):
             self._draw_bubble(field, b)
         if w.celebrating:
             self._draw_player_celebrating(field, w.player, w.celebrate_t)
+        elif w.player.dead:
+            self._draw_player_dead(field, w.player, w.death_t if w.player.landed_dead else 0.0,
+                                   w.player.landed_dead)
         else:
             self._draw_player(field, w.player)
 
@@ -350,6 +353,9 @@ class GameScene(Scene):
         draw_text(surf, self.hud, level, S.WHITE, center=(S.LOGICAL_W // 2, hud_y))
         draw_text(surf, self.hud, t("hud.lives", lives=w.lives), S.WHITE,
                   midright=(S.LOGICAL_W - S.BORDER, hud_y))
+
+        for g in w.ghosts:  # suben por encima del marcador hasta salir de la pantalla
+            self._draw_ghost(surf, g)
 
         controls_y = S.HUD_H + S.FIELD_H
         pygame.draw.rect(surf, (10, 12, 26), (0, controls_y, S.LOGICAL_W, S.LOGICAL_H - controls_y))
@@ -425,6 +431,65 @@ class GameScene(Scene):
             pygame.draw.rect(surf, S.PLAYER_TONGUE, tongue, border_radius=3)
             pygame.draw.line(surf, (150, 20, 35), (cx, tongue.y + 1),
                              (cx, tongue.bottom - 2), 1)               # surco central
+
+    @staticmethod
+    def _draw_x_eye(surf, center, r=4):
+        """Ojo de muerto: en blanco con una X."""
+        x, y = center
+        pygame.draw.circle(surf, S.WHITE, (x, y), r + 1)
+        d = r - 1
+        pygame.draw.line(surf, S.BLACK, (x - d, y - d), (x + d, y + d), 2)
+        pygame.draw.line(surf, S.BLACK, (x - d, y + d), (x + d, y - d), 2)
+
+    def _draw_player_dead(self, surf, p, t, landed):
+        """Ojo en X; al hacer pie se vuelca de espaldas y se queda tumbado en el suelo."""
+        r = p.rect
+        k = min(1.0, t / S.DEATH_TIP_TIME) if landed else 0.0
+        if k >= 1.0:
+            # Tumbado: más largo que alto, con la cabeza (y el ojo en X) en un extremo.
+            # Cae de espaldas, así que la cabeza queda en el lado contrario al que miraba.
+            body = pygame.Rect(0, 0, 38, 20)
+            body.midbottom = r.midbottom
+            pygame.draw.rect(surf, S.PLAYER, body, border_radius=9)
+            head = -p.facing
+            eye = (body.centerx + head * 11, body.y + 8)
+            self._draw_x_eye(surf, eye, 4)
+            foot = body.centerx - head * 15                       # pies asomando al otro lado
+            pygame.draw.circle(surf, S.PLAYER_DARK, (foot, body.y + 3), 3)
+            return
+        img = pygame.Surface(r.size, pygame.SRCALPHA)
+        pygame.draw.rect(img, S.PLAYER, img.get_rect(), border_radius=10)
+        self._draw_x_eye(img, (r.width // 2 + p.facing * 5, 12), 4)
+        if k > 0:
+            img = pygame.transform.rotate(img, 90 * p.facing * k)  # volcándose
+        surf.blit(img, img.get_rect(midbottom=r.midbottom))
+
+    def _draw_ghost(self, surf, g):
+        """Enemigo eliminado: ojos en cruz, alas que aletean y 60 % de opacidad."""
+        wing_w = round(18 * S.GHOST_WING_SCALE)
+        pad_x, pad_y = wing_w + 2, round(14 * S.GHOST_WING_SCALE)  # sitio para que no se recorten
+        w, h = g.rect.size
+        layer = pygame.Surface((w + 2 * pad_x, h + 2 * pad_y), pygame.SRCALPHA)
+        body = pygame.Rect(pad_x, pad_y, w, h)
+        flap = abs(math.sin(g.t * 10))                       # aleteo
+        for side in (-1, 1):
+            wing_h = (8 + 8 * flap) * S.GHOST_WING_SCALE
+            wing = pygame.Rect(0, 0, wing_w, wing_h)
+            if side < 0:
+                wing.midright = (body.left + 4, body.y + 12 - flap * 4)
+            else:
+                wing.midleft = (body.right - 4, body.y + 12 - flap * 4)
+            pygame.draw.ellipse(layer, S.WING, wing)
+            pygame.draw.ellipse(layer, S.WING_EDGE, wing, 1)
+        if g.kind == "laser":
+            color = (40, 90, 255) if g.angry else S.ENEMY_BLUE
+        else:
+            color = (255, 60, 60) if g.angry else S.ENEMY
+        pygame.draw.rect(layer, color, body, border_radius=8)
+        for dx in (-6, 6):
+            self._draw_x_eye(layer, (body.centerx + dx, body.y + 12), 4)
+        layer.set_alpha(S.GHOST_ALPHA)
+        surf.blit(layer, (g.rect.x - pad_x, S.HUD_H + g.rect.y - pad_y))
 
     def _draw_player(self, surf, p):
         if p.invuln > 0 and int(self.t * 10) % 2 == 0:

@@ -6,7 +6,7 @@ import random
 from pygame import Rect
 
 from . import settings as S
-from .entities import ENEMY_TYPES, Bubble, Player, Star
+from .entities import ENEMY_TYPES, Bubble, Ghost, Player, Star
 from . import levels
 from .levels import parse_level
 
@@ -31,7 +31,9 @@ class World:
         self.rules = S.DIFFICULTIES[difficulty]
         self.lives = self.rules["lives"] if lives is None else lives
         self.score = score
-        self.state = "playing"   # "playing" | "won" | "lost"
+        self.state = "playing"   # "playing" | "dying" | "won" | "lost"
+        self.ghosts: list[Ghost] = []     # enemigos eliminados subiendo al cielo
+        self.death_t = 0.0                # tiempo tumbado (animación de muerte)
         self.level_start_score = score
         self.elapsed = 0.0       # segundos jugados en este nivel
         self.message = ""        # clave de traducción del aviso temporal
@@ -102,6 +104,10 @@ class World:
 
     def update(self, dt, actions):
         self.message_timer = max(0.0, self.message_timer - dt)
+        self._update_ghosts(dt)
+        if self.state == "dying":
+            self._update_dying(dt)
+            return
         if self.state == "won":
             self._update_celebration(dt)
             return
@@ -226,6 +232,7 @@ class World:
     def _pop(self, b):
         if b.captured is not None:
             b.captured.alive = False
+            self.ghosts.append(Ghost(b.captured))
             self._tutorial_event("pop")
             self.score += S.POINTS_ENEMY
         else:
@@ -249,8 +256,49 @@ class World:
             attack = e.attack_rect()
             if p.rect.colliderect(e.rect) or (attack is not None and p.rect.colliderect(attack)):
                 self.lives -= 1
-                if self.lives <= 0:
-                    self.state = "lost"
-                else:
-                    p.respawn(self.spawn)
+                self._die()
                 return
+
+    # --- muerte del jugador ---
+    def _die(self):
+        """Empieza la animación de muerte: la acción se detiene, el jugador cae hasta el suelo
+        y se queda tumbado con el ojo en X. Después reaparece o termina la partida."""
+        self.state = "dying"
+        self.death_t = 0.0
+        p = self.player
+        p.dead = True
+        p.vx = 0.0
+        p.vy = max(p.vy, 0.0)        # si iba subiendo, empieza a caer
+        p.invuln = 0.0
+        self.message_timer = 0.0
+
+    @property
+    def player_down(self) -> bool:
+        """El jugador muerto ya está tumbado en el suelo."""
+        return self.state in ("dying", "lost") and self.player.landed_dead
+
+    def _update_dying(self, dt):
+        p = self.player
+        if not p.landed_dead:
+            p.physics(dt, self.solids, self.oneway)
+            if p.on_ground:
+                p.landed_dead = True
+            return
+        self.death_t += dt
+        if self.death_t >= S.DEATH_TIME:
+            self.finish_dying()
+
+    def finish_dying(self):
+        """Termina la animación: reaparece si quedan vidas; si no, fin de la partida."""
+        if self.state != "dying":
+            return
+        if self.lives <= 0:
+            self.state = "lost"
+            return
+        self.player.respawn(self.spawn)
+        self.state = "playing"
+
+    def _update_ghosts(self, dt):
+        for g in self.ghosts:
+            g.update(dt)
+        self.ghosts = [g for g in self.ghosts if not g.gone]
