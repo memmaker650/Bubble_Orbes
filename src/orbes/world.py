@@ -39,6 +39,10 @@ class World:
         self._touching_star = False
         self._prev: set = set()
         self.tutorial_done: set = set()   # pasos del tutorial ya hechos
+        # Celebración de fin de nivel: el jugador termina su salto, hace pie y saluda
+        self.landed = False
+        self.win_t = 0.0             # tiempo desde que se tocó la estrella
+        self.celebrate_t = 0.0       # tiempo celebrando ya en el suelo
         self.load_level()
         if self.tutorial:
             self.show_message("tutorial.safe")
@@ -98,6 +102,9 @@ class World:
 
     def update(self, dt, actions):
         self.message_timer = max(0.0, self.message_timer - dt)
+        if self.state == "won":
+            self._update_celebration(dt)
+            return
         if self.state != "playing":
             return
         self.elapsed += dt
@@ -162,6 +169,34 @@ class World:
         self.state = "won"
         self.score += S.POINTS_LEVEL
         self.message_timer = 0.0
+        self.player.invuln = 0.0     # sin parpadeo durante la celebración
+        self.landed = False
+        self.win_t = self.celebrate_t = 0.0
+
+    # --- celebración ---
+    @property
+    def celebrating(self) -> bool:
+        """El jugador ya está en el suelo saludando."""
+        return self.state == "won" and self.landed
+
+    @property
+    def celebration_done(self) -> bool:
+        """Ya se puede mostrar la ventana de nivel completado."""
+        if self.state != "won":
+            return False
+        return self.celebrate_t >= S.CELEBRATE_TIME or self.win_t >= S.CELEBRATE_MAX
+
+    def _update_celebration(self, dt):
+        self.win_t += dt
+        p = self.player
+        if not self.landed:
+            # Sin control: conserva el impulso horizontal y cae hasta hacer pie
+            p.physics(dt, self.solids, self.oneway)
+            if p.on_ground:
+                self.landed = True
+                p.vx = 0.0
+        else:
+            self.celebrate_t += dt
 
     # --- burbujas ---
     def _shoot(self):

@@ -254,7 +254,6 @@ class GameScene(Scene):
         self.small = pygame.font.Font(None, 22)
         self.saved = False
         self.t = 0.0
-        self.won_t = 0.0         # tiempo desde que se completó el nivel
 
     # --- ciclo ---
     def handle_event(self, event):
@@ -281,16 +280,14 @@ class GameScene(Scene):
 
     def _overlay_visible(self) -> bool:
         w = self.world
-        if w.state == "won":  # deja ver la estrella azul un momento
-            return self.won_t >= S.STAR_DELAY
+        if w.state == "won":  # primero hace pie y celebra; luego la ventana
+            return w.celebration_done
         return w.state == "lost"
 
     def update(self, dt):
         self.t += dt
         w = self.world
         w.update(dt, self.controls.actions())
-        if w.state == "won":
-            self.won_t += dt
         if w.state == "won" and not self.saved:
             self.saved = True
             if w.tutorial:
@@ -340,7 +337,10 @@ class GameScene(Scene):
                 self._draw_enemy(field, e)
         for b in w.bubbles:
             self._draw_bubble(field, b)
-        self._draw_player(field, w.player)
+        if w.celebrating:
+            self._draw_player_celebrating(field, w.player, w.celebrate_t)
+        else:
+            self._draw_player(field, w.player)
 
         pygame.draw.rect(surf, (10, 12, 26), (0, 0, S.LOGICAL_W, S.HUD_H))
         hud_y = S.HUD_H // 2
@@ -382,6 +382,49 @@ class GameScene(Scene):
             scale = 1.0 + 0.12 * math.sin(self.t * 6) if w.enemies_left == 0 else 1.0
         pygame.draw.polygon(surf, color, star.points(scale))
         pygame.draw.polygon(surf, S.WHITE, star.points(scale), 2)
+
+    def _draw_player_celebrating(self, surf, p, t):
+        """De frente y sonriendo: levanta su brazo derecho (a la izquierda en pantalla, porque
+        nos mira) y, después, saca una pequeña lengua roja."""
+        r = p.rect
+        # Pequeño "rebote" al aterrizar (se aplasta y recupera en 0,15 s)
+        squash = max(0.0, 1.0 - t / 0.15) * 4
+        body = pygame.Rect(r.x - squash / 2, r.y + squash, r.width + squash, r.height - squash)
+
+        # Brazo derecho del personaje = lado izquierdo de la pantalla. Sube desde el costado
+        # y, ya arriba, la mano se balancea saludando.
+        raise_k = min(1.0, t / S.CELEBRATE_ARM_TIME)
+        raise_k = 1 - (1 - raise_k) ** 2                       # sube rápido y frena al final
+        shoulder = (body.left + 3, body.y + 16)
+        down = (body.left - 4, body.y + 26)                     # mano junto al costado
+        up = (body.left - 9, body.y - 6)                        # mano levantada
+        wave = math.sin((t - S.CELEBRATE_ARM_TIME) * 9) * 3 if raise_k >= 1 else 0.0
+        hand = (down[0] + (up[0] - down[0]) * raise_k + wave,
+                down[1] + (up[1] - down[1]) * raise_k)
+        # Pegado al borde izquierdo, el brazo se endereza para no meterse en el muro
+        hand = (max(hand[0], S.BORDER + 6), hand[1])
+
+        # Brazo y mano por detrás del cuerpo: si se cruzan con él (junto al muro), asoman
+        pygame.draw.line(surf, S.PLAYER_DARK, shoulder, hand, 4)       # brazo
+        pygame.draw.circle(surf, S.PLAYER, hand, 5)                    # mano
+        pygame.draw.circle(surf, S.PLAYER_DARK, hand, 5, 1)
+        pygame.draw.rect(surf, S.PLAYER, body, border_radius=10)
+
+        cx, ey = body.centerx, body.y + 11
+        for dx in (-6, 6):                                             # ojos de frente
+            pygame.draw.circle(surf, S.WHITE, (cx + dx, ey), 5)
+            pygame.draw.circle(surf, S.BLACK, (cx + dx, ey + 1), 2)
+        smile = pygame.Rect(cx - 7, body.y + 13, 14, 10)               # sonrisa
+        pygame.draw.arc(surf, S.BLACK, smile, math.pi, 2 * math.pi, 2)
+
+        # Lengua: asoma por el centro de la sonrisa cuando el brazo ya está arriba
+        if t >= S.CELEBRATE_TONGUE_AT:
+            grow = min(1.0, (t - S.CELEBRATE_TONGUE_AT) / S.CELEBRATE_TONGUE_GROW)
+            length = 2 + round(5 * grow)
+            tongue = pygame.Rect(cx - 3, smile.bottom - 2, 6, length)
+            pygame.draw.rect(surf, S.PLAYER_TONGUE, tongue, border_radius=3)
+            pygame.draw.line(surf, (150, 20, 35), (cx, tongue.y + 1),
+                             (cx, tongue.bottom - 2), 1)               # surco central
 
     def _draw_player(self, surf, p):
         if p.invuln > 0 and int(self.t * 10) % 2 == 0:

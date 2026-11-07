@@ -104,3 +104,22 @@ def test_tutorial_button_then_level_one_keeps_difficulty(tmp_path):
     assert nxt.number == 1 and nxt.score == 0 and nxt.difficulty == "hard"
     assert PlayScene(app)._next_level_index() == 1
     app.db.close()
+
+
+def test_celebration_draws_and_overlay_appears_after(tmp_path):
+    from orbes import settings as S
+    from orbes.scenes import GameScene
+
+    app = App(db_path=tmp_path / "t.db")
+    game = GameScene(app, level_index=1)
+    w = game.world
+    for e in w.enemies:
+        e.alive = False
+    w.player.place(*w.star.rect.topleft)
+    game.update(1 / 60)
+    assert w.state == "won" and not game._overlay_visible()
+    for _ in range(int((S.CELEBRATE_MAX + 0.5) * 60)):
+        game.update(1 / 60)
+        game.draw(app.display.surface)       # dibuja caída, celebración y ventana
+    assert w.celebrating and game._overlay_visible()
+    app.db.close()

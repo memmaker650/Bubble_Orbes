@@ -343,3 +343,69 @@ def test_level_can_always_be_finished_after_escape():
     w.player.place(*w.star.rect.topleft)
     step(w, 1)
     assert w.state == "won"
+
+
+# --- celebración de fin de nivel ---
+
+def _win_in_mid_air(level=1):
+    """Toca la estrella en pleno salto (como al saltar desde la plataforma de arriba)."""
+    w = World(level, seed=1)
+    for e in w.enemies:
+        e.alive = False
+    p = w.player
+    p.place(w.star.rect.x, w.star.rect.y)
+    p.vy = -100.0
+    step(w, 1, {"right"})                       # avanzando hacia la derecha al tocarla
+    assert w.state == "won"
+    return w, p
+
+
+def test_player_keeps_falling_after_touching_star_and_lands():
+    w, p = _win_in_mid_air()
+    y0 = p.rect.y
+    assert not w.landed and not w.celebrating
+    step(w, 5)
+    assert p.rect.x > w.star.rect.x            # conserva el impulso horizontal
+    for _ in range(240):
+        step(w, 1)
+        if w.landed:
+            break
+    assert w.landed and w.celebrating
+    assert p.rect.y > y0                        # ha bajado hasta hacer pie
+    assert p.on_ground and p.vx == 0
+    x = p.rect.x
+    step(w, 30)
+    assert p.rect.x == x                        # ya en el suelo, quieto
+
+
+def test_window_waits_for_landing_and_celebration():
+    w, p = _win_in_mid_air()
+    while not w.landed:
+        step(w, 1)
+    assert not w.celebration_done
+    step(w, int(S.CELEBRATE_TIME * 60) + 2)
+    assert w.celebration_done
+
+
+def test_win_while_standing_celebrates_at_once():
+    w = World(1, seed=1)
+    for e in w.enemies:
+        e.alive = False
+    p = w.player
+    # De pie sobre la plataforma de la fila 4, justo bajo la estrella: salta y la toca
+    p.place(w.star.rect.centerx - p.rect.width // 2, S.cell_pos(0, 4)[1] - p.rect.height)
+    step(w, 5)
+    step(w, 1, {"jump"})
+    while w.state != "won":
+        step(w, 1)
+    while not w.landed:
+        step(w, 1)
+    assert p.rect.bottom == S.cell_pos(0, 4)[1]  # vuelve a la plataforma de la que saltó
+
+
+def test_celebration_has_time_limit():
+    w, p = _win_in_mid_air()
+    w.landed = False
+    p.physics = lambda *a: False                # "nunca" llega al suelo
+    step(w, int(S.CELEBRATE_MAX * 60) + 2)
+    assert w.celebration_done

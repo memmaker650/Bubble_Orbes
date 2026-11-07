@@ -67,7 +67,11 @@ DEFAULT_DIFFICULTY = "normal"
 
 # --- Estrella de fin de nivel ---
 STAR_SIZE = 30
-STAR_DELAY = 0.8               # segundos viendo la estrella azul antes del mensaje
+CELEBRATE_TIME = 1.8           # segundos celebrando (ya en el suelo) antes del mensaje
+CELEBRATE_ARM_TIME = 0.3       # lo que tarda en levantar el brazo al hacer pie
+CELEBRATE_TONGUE_AT = 0.6      # después saca la lengua (segundos desde que hace pie)
+CELEBRATE_TONGUE_GROW = 0.15   # lo que tarda la lengua en salir del todo
+CELEBRATE_MAX = 5.0            # tope desde que se toca la estrella, por si nunca hace pie
 MESSAGE_TIME = 2.5             # duración de los avisos en pantalla
 
 # --- Reglas ---
@@ -83,6 +87,8 @@ BG = (18, 20, 40)
 SOLID = (70, 80, 150)
 PLATFORM = (120, 140, 230)
 PLAYER = (80, 220, 140)
+PLAYER_DARK = (40, 150, 90)
+PLAYER_TONGUE = (225, 40, 55)
 ENEMY = (235, 90, 90)
 ENEMY_BLUE = (80, 130, 240)
 TONGUE = (255, 120, 170)
