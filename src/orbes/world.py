@@ -1,11 +1,19 @@
 """Reglas del juego sin dependencia de ventana ni de dibujo."""
 
+import logging
 import random
+
+from pygame import Rect
 
 from . import settings as S
 from .entities import ENEMY_TYPES, Bubble, Player, Star
 from . import levels
 from .levels import parse_level
+
+log = logging.getLogger(__name__)
+
+# Zona interior del nivel (dentro de los bordes)
+INTERIOR = Rect(S.BORDER, S.BORDER, S.FIELD_W - 2 * S.BORDER, S.FIELD_H - 2 * S.BORDER)
 
 # Pasos del tutorial, en orden. Cada uno se completa con el evento del mismo nombre;
 # el texto de ayuda es la clave de traducción "tutorial.<paso>".
@@ -112,11 +120,28 @@ class World:
             if e.alive:
                 e.update(dt, self.solids, self.oneway, target)
         self._update_bubbles(dt)
+        self._rescue_escaped()
         self._check_player_hit()
         if self.enemies_left == 0:
             self._tutorial_event("clear")
         if self.state == "playing":
             self._check_star()
+
+    # --- red de seguridad ---
+    def _rescue_escaped(self):
+        """Devuelve al campo a quien se haya salido de él, para que el nivel nunca se bloquee
+        (un enemigo vivo fuera de la pantalla haría imposible terminarlo)."""
+        for e in self.enemies:
+            if e.alive and e.state == "walk" and not INTERIOR.colliderect(e.rect):
+                log.warning("Enemigo %s fuera del campo en %s; vuelve a su inicio",
+                            e.kind, e.rect.topleft)
+                e.place(*e.spawn)
+                e.vx = e.vy = 0.0
+                e.attack = None
+        p = self.player
+        if not INTERIOR.colliderect(p.rect):
+            log.warning("Jugador fuera del campo en %s; vuelve al inicio", p.rect.topleft)
+            p.respawn(self.spawn)
 
     # --- estrella ---
     def _check_star(self):

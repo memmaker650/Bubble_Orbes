@@ -27,9 +27,33 @@ class Body:
         self.rect.center = pos
         self.fx, self.fy = float(self.rect.x), float(self.rect.y)
 
+    def push_out(self, solids) -> bool:
+        """Si el cuerpo está metido dentro de un sólido, lo saca por el lado más cercano.
+
+        La resolución de choques de ``physics`` da por hecho que el cuerpo empieza cada frame
+        fuera de los sólidos. Si no es así (p. ej. un enemigo que se escapa de una burbuja
+        pegada al techo), empujarlo según su velocidad puede mandarlo al otro lado del muro.
+        Devuelve True si hubo que moverlo.
+        """
+        moved = False
+        for _ in range(4):  # varios sólidos a la vez (esquinas)
+            hit = next((s for s in solids if self.rect.colliderect(s)), None)
+            if hit is None:
+                break
+            r = self.rect
+            dx, dy = min((hit.left - r.right, 0), (hit.right - r.left, 0),
+                         (0, hit.top - r.bottom), (0, hit.bottom - r.top),
+                         key=lambda d: abs(d[0]) + abs(d[1]))
+            r.move_ip(dx, dy)
+            moved = True
+        if moved:
+            self.fx, self.fy = float(self.rect.x), float(self.rect.y)
+        return moved
+
     def physics(self, dt, solids, oneway) -> bool:
         """Mueve el cuerpo. Devuelve True si chocó lateralmente con un muro."""
         blocked = False
+        self.push_out(solids)
 
         # Horizontal
         self.fx += self.vx * dt
@@ -111,6 +135,7 @@ class Enemy(Body):
 
     def __init__(self, x, y, speed, rng):
         super().__init__(x + 6, y + 8, 28, 32)
+        self.spawn = self.rect.topleft
         self.speed = speed
         self.rng = rng
         self.direction = rng.choice((-1, 1))
@@ -317,10 +342,10 @@ class Bubble:
             if self.timer <= 0:
                 self._to_float()
         else:
-            self.fy = max(float(S.TILE), self.fy - S.BUBBLE_RISE * dt)
+            self.fy = max(float(S.BORDER), self.fy - S.BUBBLE_RISE * dt)
             self.fx += math.sin(self.age * 3.0) * 18.0 * dt
-            self.fx = min(max(self.fx, float(S.TILE)),
-                          float(S.FIELD_W - S.TILE - S.BUBBLE_SIZE))
+            self.fx = min(max(self.fx, float(S.BORDER)),
+                          float(S.FIELD_W - S.BORDER - S.BUBBLE_SIZE))
             self.rect.topleft = (round(self.fx), round(self.fy))
             self.life -= dt
         if self.captured is not None:

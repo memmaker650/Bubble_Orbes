@@ -15,7 +15,10 @@ from .world import World
 
 log = logging.getLogger(__name__)
 
-SAVE_VERSION = 1
+SAVE_VERSION = 2
+# Versiones anteriores que aún se aceptan, pero solo para empezar el nivel desde el principio
+# (v1: mapas con bordes de una casilla; las posiciones guardadas ya no sirven).
+LEGACY_VERSIONS = {1}
 
 _BODY = ("fx", "fy", "vx", "vy", "on_ground", "coyote")
 _ENEMY = _BODY + ("direction", "state", "alive", "angry", "jump_cd",
@@ -83,8 +86,9 @@ def snapshot(w: World) -> dict | None:
 def restore(data: dict) -> World:
     """Reconstruye el mundo a partir de lo guardado. Lanza ValueError si los datos no sirven."""
     try:
-        if data.get("version") != SAVE_VERSION:
-            raise ValueError(f"versión de guardado desconocida: {data.get('version')}")
+        version = data.get("version")
+        if version != SAVE_VERSION and version not in LEGACY_VERSIONS:
+            raise ValueError(f"versión de guardado desconocida: {version}")
         index = levels.index_of(int(data["level_number"]))
         lives, score = int(data["lives"]), int(data["score"])
         # Partidas guardadas antes de existir la dificultad: "normal"
@@ -94,6 +98,10 @@ def restore(data: dict) -> World:
 
     if data.get("fresh"):
         return World(index, lives, score, difficulty=difficulty)
+    if version in LEGACY_VERSIONS:
+        log.info("Partida guardada con formato v%s: se retoma desde el principio del nivel", version)
+        return World(index, lives, int(data.get("level_start_score", score)),
+                     difficulty=difficulty)
 
     w = World(index, lives, int(data.get("level_start_score", score)), difficulty=difficulty)
     saved_enemies = data.get("enemies", [])

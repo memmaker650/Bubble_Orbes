@@ -6,13 +6,17 @@ from . import settings as S
 from .flags import flag_surface
 
 
-def draw_text(surf, font, text, color, center=None, topleft=None):
+def draw_text(surf, font, text, color, center=None, topleft=None, midleft=None, midright=None):
     img = font.render(text, True, color)
     rect = img.get_rect()
     if center is not None:
         rect.center = center
     if topleft is not None:
         rect.topleft = topleft
+    if midleft is not None:
+        rect.midleft = midleft
+    if midright is not None:
+        rect.midright = midright
     surf.blit(img, rect)
     return rect
 

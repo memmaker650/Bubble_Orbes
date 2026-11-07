@@ -25,7 +25,7 @@ def _mid_game_world():
     w.player.invuln = 99      # que nadie le quite vidas mientras preparamos la escena
     step(w, 60)
     e, p = w.enemies[0], w.player
-    floor_y = (S.ROWS - 1) * S.TILE - p.rect.height
+    floor_y = S.FLOOR_Y - p.rect.height
     p.place(60, floor_y)
     e.place(150, floor_y)
     e.direction = 1           # de espaldas: no ataca
@@ -206,3 +206,12 @@ def test_old_save_without_difficulty_is_normal():
     data = savegame.snapshot(World(1, seed=1))
     del data["difficulty"]
     assert savegame.restore(data).difficulty == "normal"
+
+
+def test_old_v1_save_restarts_level_with_progress():
+    data = {"version": 1, "level_number": 2, "lives": 2, "score": 900,
+            "level_start_score": 700, "fresh": False, "difficulty": "easy",
+            "player": {"fx": 999, "fy": 999}, "enemies": [], "bubbles": []}
+    w = savegame.restore(data)
+    assert (w.number, w.lives, w.score, w.difficulty) == (2, 2, 700, "easy")
+    assert w.player.rect.topleft != (999, 999)

@@ -22,23 +22,35 @@ def test_levels_are_loaded_from_json_in_order():
     assert (LEVELS_DIR / "level_00.json").exists()
 
 
-def test_tutorial_uses_same_map_as_level_one():
+def test_tutorial_flags():
     tutorial, level1 = LEVELS[0], LEVELS[1]
     assert tutorial.tutorial and not tutorial.enemies_attack
     assert not level1.tutorial and level1.enemies_attack
-    assert tutorial.rows == level1.rows
 
 
-def test_json_files_match_generator():
-    """Los JSON del repositorio son los que produce el generador (no se han desincronizado)."""
-    for level in LevelGenerator().default_levels():
-        path = LEVELS_DIR / LevelGenerator.filename(level)
-        assert json.loads(path.read_text(encoding="utf-8")) == level.to_dict()
+def test_generator_template_produces_valid_levels():
+    # Los JSON se pueden editar a mano, así que no tienen por qué coincidir con la plantilla;
+    # lo que sí debe cumplirse es que la plantilla genere niveles válidos.
+    gen = LevelGenerator()
+    levels = gen.default_levels()
+    assert [lv.number for lv in levels] == [0, 1, 2, 3]
+    assert levels[0].rows == levels[1].rows   # el tutorial parte del mapa del nivel 1
+
+
+def test_export_does_not_overwrite_hand_edited_levels(tmp_path):
+    gen = LevelGenerator()
+    level = gen.default_levels()[1]
+    path = gen.export(level, tmp_path)
+    path.write_text(path.read_text().replace("Nivel 1", "Editado"))
+    assert gen.export_all([level], tmp_path, overwrite=False) == []
+    assert "Editado" in path.read_text()
+    assert gen.export_all([level], tmp_path, overwrite=True) == [path]
+    assert "Editado" not in path.read_text()
 
 
 def test_export_and_reload_roundtrip(tmp_path):
     gen = LevelGenerator()
-    custom = gen.make(7, gen.build_map(r2="B     B"), name="Prueba")
+    custom = gen.make(7, gen.build_map(r3="B       B"), name="Prueba")
     gen.export_all([custom], tmp_path)
     loaded = load_levels(tmp_path)
     assert loaded == [custom]
@@ -50,7 +62,7 @@ def test_invalid_map_is_rejected(tmp_path):
     with pytest.raises(ValueError, match="level_01.json"):
         load_levels(tmp_path)
     with pytest.raises(ValueError):
-        LevelGenerator().build_map(r2="XXXXXXX")
+        LevelGenerator().build_map(r3="XXXXXXXXX")
 
 
 def test_index_of_level_number():
@@ -104,3 +116,43 @@ def test_tutorial_guides_through_steps():
 def test_normal_level_has_no_tutorial():
     w = World(1, seed=1)
     assert w.tutorial_step is None and w.message == ""
+
+
+# --- bordes finos ---
+
+def test_borders_are_thin_and_interior_is_bigger():
+    assert S.BORDER <= S.TILE * 0.4          # al menos un 60 % más estrechos
+    assert (S.COLS, S.ROWS) == (9, 16)       # antes el interior era 7 x 14
+    assert S.FIELD_W == S.COLS * S.TILE + 2 * S.BORDER
+    assert all(len(lv.rows) == S.ROWS and len(lv.rows[0]) == S.COLS for lv in LEVELS)
+
+
+def test_player_cannot_fall_through_thin_floor():
+    w = World(1, seed=1)
+    p = w.player
+    p.place(S.FIELD_W // 2, S.FLOOR_Y - 200)
+    for _ in range(120):
+        p.vy = S.MAX_FALL                    # cayendo siempre a la velocidad máxima
+        w.player.physics(1 / 30, w.solids, w.oneway)
+    assert p.rect.bottom == S.FLOOR_Y
+
+
+def test_player_cannot_walk_through_thin_side_walls():
+    w = World(1, seed=1)
+    p = w.player
+    p.invuln = 99
+    for e in w.enemies:
+        e.alive = False
+    step(w, 200, {"left"})
+    assert p.rect.left == S.BORDER
+    step(w, 300, {"right"})
+    assert p.rect.right == S.FIELD_W - S.BORDER
+
+
+def test_inner_blocks_are_solid_obstacles():
+    rows = LevelGenerator().build_map()
+    rows[14] = "    #    "                       # bloque en mitad del suelo
+    from orbes.levels import parse_level
+    data = parse_level(rows)
+    block = S.cell_pos(4, 14)
+    assert any(s.topleft == block and s.size == (S.TILE, S.TILE) for s in data.solids)

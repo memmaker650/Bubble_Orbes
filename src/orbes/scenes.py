@@ -17,6 +17,8 @@ from .ui import Button, FlagButton, draw_message_box, draw_text
 from .world import World
 
 IS_IOS = sys.platform == "ios"
+_BTN_X = (S.LOGICAL_W - 260) // 2      # botones de menú centrados
+_SCORES_X = (S.LOGICAL_W - 300) // 2
 log = logging.getLogger(__name__)
 
 
@@ -58,7 +60,7 @@ class MenuScene(Scene):
         entries += [("play", t("menu.play")), ("scores", t("menu.scores"))]
         if not IS_IOS:  # en iOS no se "sale" de una app
             entries.append(("quit", t("menu.quit")))
-        self.buttons = [(name, Button((50, 340 + i * 72, 260, 54), label))
+        self.buttons = [(name, Button((_BTN_X, 340 + i * 72, 260, 54), label))
                         for i, (name, label) in enumerate(entries)]
         self.lang_button = FlagButton((S.LOGICAL_W - 66, S.LOGICAL_H - 52, 54, 38),
                                       translations.current().flag)
@@ -118,7 +120,7 @@ class MenuScene(Scene):
     def draw(self, surf):
         surf.fill(S.BG)
         for i in range(6):  # orbes decorativos flotando
-            x = 40 + i * 56
+            x = (S.LOGICAL_W - 280) // 2 + i * 56
             y = 240 - ((self.t * 30 + i * 70) % 260) + 120
             r = 12 + (i % 3) * 5
             pygame.draw.circle(surf, S.BUBBLE, (x + math.sin(self.t + i) * 12, y), r, 2)
@@ -152,11 +154,11 @@ class PlayScene(Scene):
         level = levels.LEVELS[self._next_level_index()]
         difficulty = get_difficulty(self.app.db)
         self.buttons = [
-            ("start", Button((50, 250, 260, 60), t("play.start", level=level.number))),
-            ("difficulty", Button((50, 330, 260, 60), t(
+            ("start", Button((_BTN_X, 250, 260, 60), t("play.start", level=level.number))),
+            ("difficulty", Button((_BTN_X, 330, 260, 60), t(
                 "play.difficulty", value=t(f"difficulty.{difficulty}")))),
-            ("tutorial", Button((50, 410, 260, 60), t("menu.tutorial"))),
-            ("back", Button((110, S.LOGICAL_H - 110, 140, 46), t("common.back"))),
+            ("tutorial", Button((_BTN_X, 410, 260, 60), t("menu.tutorial"))),
+            ("back", Button(((S.LOGICAL_W - 140) // 2, S.LOGICAL_H - 110, 140, 46), t("common.back"))),
         ]
 
     def _cycle_difficulty(self):
@@ -230,9 +232,9 @@ class ScoresScene(Scene):
                       center=(S.LOGICAL_W // 2, 200))
         for i, row in enumerate(self.rows):
             y = 130 + i * 40
-            draw_text(surf, self.font, f"{i + 1:>2}.  {row['player']}", S.WHITE, topleft=(30, y))
+            draw_text(surf, self.font, f"{i + 1:>2}.  {row['player']}", S.WHITE, topleft=(_SCORES_X, y))
             draw_text(surf, self.font, f"{row['score']}  ({t('scores.level', level=row['level'])})", S.PLATFORM,
-                      topleft=(215, y))
+                      topleft=(_SCORES_X + 185, y))
         draw_text(surf, self.font, t("scores.back"), S.WHITE,
                   center=(S.LOGICAL_W // 2, S.LOGICAL_H - 60))
 
@@ -323,42 +325,52 @@ class GameScene(Scene):
     def draw(self, surf):
         w = self.world
         surf.fill(S.BG)
+        # El mundo se dibuja en su propia zona, bajo la franja del marcador; lo que quede
+        # fuera (la parte gruesa de los bordes) se recorta solo.
+        field = surf.subsurface((0, S.HUD_H, S.FIELD_W, S.FIELD_H))
         for s in w.solids:
-            pygame.draw.rect(surf, S.SOLID, s)
+            pygame.draw.rect(field, S.SOLID, s)
         for p in w.oneway:
-            pygame.draw.rect(surf, S.PLATFORM, p, border_radius=5)
+            pygame.draw.rect(field, S.PLATFORM, p, border_radius=5)
 
         if w.star is not None:
-            self._draw_star(surf, w)
+            self._draw_star(field, w)
         for e in w.enemies:
             if e.alive:
-                self._draw_enemy(surf, e)
+                self._draw_enemy(field, e)
         for b in w.bubbles:
-            self._draw_bubble(surf, b)
-        self._draw_player(surf, w.player)
+            self._draw_bubble(field, b)
+        self._draw_player(field, w.player)
 
-        draw_text(surf, self.hud, t("hud.score", score=w.score), S.WHITE, topleft=(10, 10))
+        pygame.draw.rect(surf, (10, 12, 26), (0, 0, S.LOGICAL_W, S.HUD_H))
+        hud_y = S.HUD_H // 2
+        draw_text(surf, self.hud, t("hud.score", score=w.score), S.WHITE,
+                  midleft=(S.BORDER, hud_y))
         level = t("hud.tutorial") if w.tutorial else t("hud.level", level=w.number)
-        draw_text(surf, self.hud, level, S.WHITE,
-                  center=(S.LOGICAL_W // 2, 20))
-        draw_text(surf, self.hud, t("hud.lives", lives=w.lives), S.WHITE, topleft=(S.LOGICAL_W - 90, 10))
+        draw_text(surf, self.hud, level, S.WHITE, center=(S.LOGICAL_W // 2, hud_y))
+        draw_text(surf, self.hud, t("hud.lives", lives=w.lives), S.WHITE,
+                  midright=(S.LOGICAL_W - S.BORDER, hud_y))
 
-        pygame.draw.rect(surf, (10, 12, 26), (0, S.FIELD_H, S.LOGICAL_W, S.LOGICAL_H - S.FIELD_H))
+        controls_y = S.HUD_H + S.FIELD_H
+        pygame.draw.rect(surf, (10, 12, 26), (0, controls_y, S.LOGICAL_W, S.LOGICAL_H - controls_y))
         self.controls.draw(surf, self.controls.actions())
 
         if w.tutorial_step is not None:
             self._draw_tutorial_hint(surf, w.tutorial_step)
         if w.message_timer > 0 and w.state == "playing":
             draw_message_box(surf, [(self.font, t(w.message), S.WHITE)],
-                             center=(S.LOGICAL_W // 2, S.FIELD_H // 2), accent=S.STAR_YELLOW)
+                             center=(S.LOGICAL_W // 2, S.HUD_H + S.FIELD_H // 2),
+                             accent=S.STAR_YELLOW)
         if self._overlay_visible():
             self._draw_overlay(surf)
 
     def _draw_tutorial_hint(self, surf, step):
         keys = "" if IS_IOS else " (Z)"
+        # En la fila 0, que está libre en el tutorial
         draw_message_box(surf, [(self.small, t(f"tutorial.{step}", keys=keys), S.STAR_YELLOW)],
-                         center=(S.LOGICAL_W // 2, S.FIELD_H - 20), width=340,
-                         padding=8, accent=S.STAR_YELLOW)
+                         center=(S.LOGICAL_W // 2, S.HUD_H + S.BORDER + S.TILE // 2),
+                         width=S.FIELD_W - 2 * S.BORDER, padding=6, gap=4,
+                         accent=S.STAR_YELLOW)
 
     def _draw_star(self, surf, w):
         star = w.star
@@ -444,10 +456,10 @@ class GameScene(Scene):
 
     def _draw_overlay(self, surf):
         w = self.world
-        dim = pygame.Surface((S.LOGICAL_W, S.FIELD_H), pygame.SRCALPHA)
+        dim = pygame.Surface((S.LOGICAL_W, S.HUD_H + S.FIELD_H), pygame.SRCALPHA)
         dim.fill((0, 0, 0, 160))
         surf.blit(dim, (0, 0))
-        center = (S.LOGICAL_W // 2, S.FIELD_H // 2)
+        center = (S.LOGICAL_W // 2, S.HUD_H + S.FIELD_H // 2)
         if w.state == "won":
             minutes, seconds = divmod(int(w.elapsed), 60)
             if w.tutorial:

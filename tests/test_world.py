@@ -34,14 +34,15 @@ def test_player_stands_on_floor_and_jumps():
 def test_player_can_reach_first_platform():
     w = World(1, seed=1)
     p = w.player
-    # En el suelo, justo bajo la plataforma de la fila 12 (columnas 1-2, x 40..120).
-    p.place(60, (S.ROWS - 1) * S.TILE - p.rect.height)
+    # En el suelo, justo bajo la plataforma lateral de la fila 13 (columnas 0-2).
+    x, platform_y = S.cell_pos(1, 13)
+    p.place(x, S.FLOOR_Y - p.rect.height)
     step(w, 10)
-    assert p.rect.bottom == (S.ROWS - 1) * S.TILE
+    assert p.rect.bottom == S.FLOOR_Y
     step(w, 1, {"jump"})
     step(w, 80)
     # Atraviesa la plataforma desde abajo y aterriza encima de ella.
-    assert p.rect.bottom == 12 * S.TILE
+    assert p.rect.bottom == platform_y
 
 
 def test_bubble_traps_then_pop_scores():
@@ -130,8 +131,8 @@ def test_star_is_reachable_from_top_platform():
     p = w.player
     for e in w.enemies:
         e.alive = False
-    # De pie sobre la plataforma de la fila 3, bajo la estrella.
-    p.place(w.star.rect.centerx - p.rect.width // 2, 3 * S.TILE - p.rect.height)
+    # De pie sobre la plataforma de la fila 4, bajo la estrella.
+    p.place(w.star.rect.centerx - p.rect.width // 2, S.cell_pos(0, 4)[1] - p.rect.height)
     step(w, 5)
     step(w, 1, {"jump"})
     step(w, 40)
@@ -141,7 +142,7 @@ def test_star_is_reachable_from_top_platform():
 # --- tipos de enemigo ---
 from orbes.entities import LaserEnemy, TongueEnemy  # noqa: E402
 
-FLOOR_Y = (S.ROWS - 1) * S.TILE - 32
+FLOOR_Y = S.FLOOR_Y - 32
 
 
 def _duel(cls, gap):
@@ -193,14 +194,19 @@ def test_laser_lasts_one_second_then_recharges_four():
     step(w, int(S.LASER_WINDUP * 60) + 1)
     assert e.attack == "fire"
     beam = e.attack_rect()
-    assert beam.colliderect(p.rect) and beam.left <= S.TILE   # llega hasta el muro
+    assert beam.colliderect(p.rect) and beam.left == S.BORDER   # llega hasta el borde
     step(w, 50)              # ~0.85 s disparando: sigue activo
     assert e.attack == "fire"
     step(w, 12)              # pasado 1 s: se apaga
     assert e.attack is None and e.attack_rect() is None
     assert abs(e.cooldown - S.LASER_RECHARGE) < 0.1
     step(w, int(3.8 * 60))
-    assert e.attack is None  # sigue recargando aunque vea al jugador
+    # Mientras recarga sigue andando: lo devolvemos frente al jugador para comprobar
+    # que, aun viéndolo, no dispara hasta completar los 4 s.
+    e.place(p.rect.right + 200, FLOOR_Y)
+    e.direction = -1
+    step(w, 1)
+    assert e.attack is None and e.cooldown > 0
     step(w, 20)
     assert e.attack is not None
 
@@ -250,3 +256,90 @@ def test_hard_recharges_faster_easy_slower():
 
 def test_unknown_difficulty_falls_back_to_normal():
     assert World(1, seed=1, difficulty="imposible").difficulty == "normal"
+
+
+# --- regresión: enemigo que desaparecía al escaparse de una burbuja pegada al techo ---
+from orbes.entities import Bubble  # noqa: E402
+from orbes.world import INTERIOR  # noqa: E402
+
+
+def _release_at(w, e, x, y, direction):
+    """Atrapa a `e` en una burbuja en (x, y) y deja que caduque."""
+    e.direction = direction
+    b = Bubble(0, 0, 1)
+    b._to_float()
+    b.age = 1.0
+    b.fx, b.fy = float(x), float(y)
+    b.rect.topleft = (x, y)
+    e.trap()
+    b.captured = e
+    b.life = 0.05
+    w.bubbles = [b]
+    while w.bubbles:
+        w.update(DT, set())
+
+
+@pytest.mark.parametrize("direction", (1, -1))
+def test_enemy_released_at_ceiling_stays_in_field(direction):
+    w = World(1, seed=1)
+    w.player.invuln = 999
+    e = next(e for e in w.enemies if isinstance(e, LaserEnemy))
+    _release_at(w, e, 180, S.BORDER, direction)
+    step(w, 1)
+    assert INTERIOR.contains(e.rect), e.rect
+    step(w, 600)
+    assert INTERIOR.contains(e.rect), e.rect
+
+
+def test_release_anywhere_along_borders_never_escapes():
+    top, left, right = S.BORDER, S.BORDER, S.FIELD_W - S.BORDER - S.BUBBLE_SIZE
+    spots = [(x, top) for x in range(left, right + 1, 16)]
+    spots += [(left, y) for y in range(top, S.FLOOR_Y - 40, 40)]
+    spots += [(right, y) for y in range(top, S.FLOOR_Y - 40, 40)]
+    for x, y in spots:
+        for direction in (1, -1):
+            w = World(1, seed=1)
+            w.player.invuln = 999
+            e = w.enemies[0]
+            _release_at(w, e, x, y, direction)
+            step(w, 2)
+            assert INTERIOR.contains(e.rect), (x, y, direction, e.rect)
+
+
+def test_push_out_uses_nearest_side_not_velocity():
+    from pygame import Rect
+    from orbes.entities import Enemy
+    import random
+    e = Enemy(0, 0, 50, random.Random(1))
+    block = Rect(100, 100, 40, 40)
+    e.place(130, 120)          # metido por la derecha del bloque
+    e.vx = 200                 # aunque vaya hacia la derecha... (antes lo mandaba al otro lado)
+    e.physics(DT, [block], [])
+    assert not e.rect.colliderect(block)
+    assert e.rect.left >= block.right - 1
+
+
+def test_safety_net_brings_back_enemy_outside_field():
+    w = World(1, seed=1)
+    w.player.invuln = 999
+    e = w.enemies[0]
+    e.place(-500, -500)
+    step(w, 1)
+    assert INTERIOR.colliderect(e.rect)
+    assert e.alive
+
+
+def test_level_can_always_be_finished_after_escape():
+    """El caso del bloqueo: tras escaparse del techo, el enemigo se puede atrapar y la
+    estrella termina el nivel."""
+    w = World(1, seed=1)
+    w.player.invuln = 999
+    e = next(e for e in w.enemies if isinstance(e, LaserEnemy))
+    _release_at(w, e, 180, S.BORDER, 1)
+    step(w, 5)
+    assert INTERIOR.contains(e.rect)
+    for other in w.enemies:
+        other.alive = False
+    w.player.place(*w.star.rect.topleft)
+    step(w, 1)
+    assert w.state == "won"

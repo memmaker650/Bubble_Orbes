@@ -2,12 +2,21 @@
 
 # --- Pantalla lógica (relación ~ iPhone en vertical) ---
 TILE = 40
-COLS = 9
+COLS = 9                       # casillas interiores del nivel (los bordes no cuentan)
 ROWS = 16
-FIELD_W = COLS * TILE          # 360
-FIELD_H = ROWS * TILE          # 640  -> zona de juego
+BORDER = 12                    # grosor visible de los bordes del nivel (antes 1 casilla = 40)
+FIELD_W = COLS * TILE + 2 * BORDER   # 384
+FIELD_H = ROWS * TILE + 2 * BORDER   # 664  -> zona de juego (coordenadas del mundo)
+HUD_H = 28                     # franja superior con puntos, nivel y vidas
+CONTROLS_H = 120               # barra de controles táctiles
 LOGICAL_W = FIELD_W
-LOGICAL_H = FIELD_H + 120      # + barra de controles táctiles
+LOGICAL_H = HUD_H + FIELD_H + CONTROLS_H   # 812 (misma proporción que antes)
+FLOOR_Y = FIELD_H - BORDER     # altura del suelo (borde inferior)
+
+
+def cell_pos(col, row):
+    """Esquina superior izquierda de una casilla interior en coordenadas del mundo."""
+    return BORDER + col * TILE, BORDER + row * TILE
 FPS = 60
 
 # --- Física ---

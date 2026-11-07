@@ -5,12 +5,12 @@ from pygame import Rect
 
 from . import settings as S
 
-_Y = S.FIELD_H + 16
+_Y = S.HUD_H + S.FIELD_H + 16
 BUTTONS = {
-    "left": Rect(10, _Y, 84, 90),
-    "right": Rect(100, _Y, 84, 90),
-    "jump": Rect(196, _Y, 76, 90),
-    "bubble": Rect(278, _Y, 72, 90),
+    "left": Rect(10, _Y, 90, 90),
+    "right": Rect(106, _Y, 90, 90),
+    "jump": Rect(208, _Y, 80, 90),
+    "bubble": Rect(296, _Y, 78, 90),
 }
 
 KEYS = {
