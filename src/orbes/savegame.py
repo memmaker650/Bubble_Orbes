@@ -101,7 +101,7 @@ def restore(data: dict) -> World:
         if version != SAVE_VERSION and version not in LEGACY_VERSIONS:
             raise ValueError(f"versión de guardado desconocida: {version}")
         index = levels.index_of(int(data["level_number"]))
-        lives, score = int(data["lives"]), int(data["score"])
+        lives, score = float(data["lives"]), int(data["score"])
         # Partidas guardadas antes de existir la dificultad: "normal"
         difficulty = data.get("difficulty", S.DEFAULT_DIFFICULTY)
     except (KeyError, TypeError, ValueError, AttributeError) as exc:

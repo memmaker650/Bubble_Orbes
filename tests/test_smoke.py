@@ -134,7 +134,7 @@ def test_death_animations_draw(tmp_path):
     w = game.world
     w.ghosts.append(Ghost(w.enemies[1]))
     w.enemies[1].alive = False
-    w.enemies[0].place(*w.player.rect.topleft)
+    w.hit_player(1.0)
     for _ in range(int(4 * 60)):
         game.update(1 / 60)
         game.draw(app.display.surface)
@@ -202,7 +202,7 @@ def test_game_over_restarts_from_level_one(tmp_path):
 
     game = GameScene(app, level_index=3)
     game.world.lives = 1
-    game.world.enemies[0].place(*game.world.player.rect.topleft)
+    game.world.hit_player(1.0)                      # alcanzado por un ataque
     game.world.player.invuln = 0
     for _ in range(60 * 6):                         # muerte final con su animación
         game.update(1 / 60)
@@ -245,3 +245,20 @@ def test_tutorial_never_resets_progress(tmp_path):
     game.update(1 / 60)
     assert app.db.unlocked_level() == 3
     app.db.close()
+
+
+def test_hud_draws_half_heart(tmp_path):
+    from orbes.scenes import GameScene
+    from orbes import ui
+    calls = []
+    real = ui.draw_heart
+    ui.draw_heart = lambda surf, center, size, filled: calls.append(filled) or real(surf, center, size, filled)
+    try:
+        app = App(db_path=tmp_path / "t.db")
+        game = GameScene(app, level_index=1, difficulty="normal")
+        game.world.lives = 1.5
+        game.draw(app.display.surface)
+        assert calls == [1.0, 0.5, 0.0]
+        app.db.close()
+    finally:
+        ui.draw_heart = real

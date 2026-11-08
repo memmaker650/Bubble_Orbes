@@ -125,6 +125,7 @@ class Player(Body):
         self.invuln = 0.0
         self.just_dropped = False  # este frame ha bajado de una plataforma
         self.jumps = 0             # 0 en el suelo, 1 tras el salto corto, 2 tras el doble
+        self.knockback = (0.0, 0.0)  # (velocidad x, tiempo restante) del empujón al ser herido
         self.jump_start = 0        # altura (pies) desde la que despegó
         self.dead = False          # animación de muerte en curso
         self.landed_dead = False   # ya ha caído tumbado al suelo
@@ -149,10 +150,15 @@ class Player(Body):
         self.vx = self.vy = 0.0
         self.invuln = S.INVULN_TIME
         self.dead = self.landed_dead = False
+        self.knockback = (0.0, 0.0)
 
     def update(self, dt, pressed, just, solids, oneway):
         dirx = ("right" in pressed) - ("left" in pressed)
         self.vx = dirx * S.PLAYER_SPEED
+        kvx, kt = self.knockback
+        if kt > 0:                     # empujado: no se controla el movimiento horizontal
+            self.vx = kvx
+            self.knockback = (kvx, kt - dt)
         if dirx:
             self.facing = dirx
         self.just_dropped = False

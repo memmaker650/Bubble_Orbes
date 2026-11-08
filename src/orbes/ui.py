@@ -43,21 +43,31 @@ def heart_points(center, size):
 
 
 def draw_heart(surf, center, size, filled):
-    """Corazón relleno (vida que queda) o solo el borde (vida gastada)."""
+    """Corazón: `filled` = 1 (entero), 0.5 (medio: mitad izquierda) o 0 (solo el borde).
+    Se aceptan también True/False."""
+    fill = float(filled)
     pts = heart_points(center, size)
-    if filled:
+    if fill >= 1:
         pygame.draw.polygon(surf, S.HEART, pts)
         pygame.draw.polygon(surf, (255, 150, 160), pts, 1)   # brillo en el contorno
-    else:
-        pygame.draw.polygon(surf, S.HEART_EMPTY, pts, 2)
+        return
+    pygame.draw.polygon(surf, S.HEART_EMPTY, pts, 2)
+    if fill > 0:
+        old = surf.get_clip()
+        left = pygame.Rect(center[0] - size, center[1] - size, size * fill * 2, size * 2)
+        surf.set_clip(left.clip(old) if old else left)
+        pygame.draw.polygon(surf, S.HEART, pts)
+        surf.set_clip(old)
 
 
 def draw_hearts(surf, lives, total, right, center_y, size=14, gap=4):
-    """Fila de `total` corazones alineada a la derecha: los `lives` primeros, rellenos."""
-    total = max(total, lives)
+    """Fila de `total` corazones alineada a la derecha. `lives` puede tener medios
+    (p. ej. 2.5 = dos enteros, uno a medias y el resto vacíos)."""
+    total = max(total, math.ceil(lives))
     for i in range(total):
         x = right - size / 2 - (total - 1 - i) * (size + gap)
-        draw_heart(surf, (x, center_y), size, filled=i < lives)
+        fill = min(1.0, max(0.0, lives - i))
+        draw_heart(surf, (x, center_y), size, filled=fill)
 
 
 _fonts: dict = {}

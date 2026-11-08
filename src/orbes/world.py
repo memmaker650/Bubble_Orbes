@@ -1,6 +1,7 @@
 """Reglas del juego sin dependencia de ventana ni de dibujo."""
 
 import logging
+import math
 import random
 
 from pygame import Rect
@@ -297,10 +298,31 @@ class World:
             if not (e.alive and e.state == "walk"):
                 continue
             attack = e.attack_rect()
-            if p.rect.colliderect(e.rect) or (attack is not None and p.rect.colliderect(attack)):
-                self.lives -= 1
-                self._die()
+            if attack is not None and p.rect.colliderect(attack):
+                self.hit_player(S.DAMAGE_ATTACK)              # lengua o láser
                 return
+            if p.rect.colliderect(e.rect):
+                self.hit_player(S.DAMAGE_TOUCH, source=e)     # contacto
+                return
+
+    def hit_player(self, damage, source=None):
+        """Resta `damage` corazones. Muere si se ha vaciado algún corazón entero (los ataques
+        siempre; el contacto solo si completa un corazón); si no, queda herido y sigue."""
+        before = self.lives
+        self.lives = max(0.0, round((self.lives - damage) * 2) / 2)   # en medios corazones
+        emptied = math.ceil(before) > math.ceil(self.lives)          # se vació un corazón
+        if emptied or self.lives <= 0 or damage >= S.DAMAGE_ATTACK:
+            self._die()
+            return
+        self._hurt(source)
+
+    def _hurt(self, source):
+        """Herido sin morir: un empujón para separarse del enemigo y un rato invulnerable."""
+        p = self.player
+        p.invuln = S.HURT_INVULN
+        away = 1 if source is None or p.rect.centerx >= source.rect.centerx else -1
+        p.knockback = (away * S.KNOCKBACK_SPEED, S.KNOCKBACK_TIME)
+        p.vy = min(p.vy, -180.0)                  # saltito
 
     # --- muerte del jugador ---
     def _die(self):

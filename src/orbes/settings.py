@@ -128,6 +128,13 @@ MESSAGE_TIME = 2.5             # duración de los avisos en pantalla
 # --- Reglas ---
 START_LIVES = 3
 INVULN_TIME = 2.0
+# Daño en corazones. El contacto quita medio: si el corazón solo queda "a medias" se sigue
+# jugando (herido); si se vacía del todo, muere. Lengua y láser quitan uno entero y matan.
+DAMAGE_TOUCH = 0.5
+DAMAGE_ATTACK = 1.0
+HURT_INVULN = 1.5              # herido (sin morir): segundos invulnerable parpadeando
+KNOCKBACK_SPEED = 220.0        # empujón al ser herido por contacto...
+KNOCKBACK_TIME = 0.18          # ...durante este tiempo (sin control horizontal)
 RESUME_INVULN = 2.0            # invulnerable al retomar una partida guardada
 POINTS_BUBBLE = 10
 POINTS_ENEMY = 100

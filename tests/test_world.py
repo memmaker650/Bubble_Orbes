@@ -91,17 +91,26 @@ def _until_not_dying(w, limit=600):
     raise AssertionError("la animación de muerte no termina")
 
 
-def test_enemy_contact_costs_life_then_game_over():
-    w = World(1, lives=2, seed=1)
-    e = w.enemies[0]
-    e.place(*w.player.rect.topleft)
-    step(w, 1)
-    assert w.lives == 1 and w.state == "dying"     # animación de muerte antes de reaparecer
-    _until_not_dying(w)
-    assert w.state == "playing" and w.player.invuln > 0 and not w.player.dead
+def _touch(w, e):
     w.player.invuln = 0
     e.place(*w.player.rect.topleft)
     step(w, 1)
+
+
+def test_contact_hurts_half_heart_second_contact_kills():
+    w = World(1, lives=2, seed=1)
+    e = w.enemies[0]
+    e.direction = 1
+    _touch(w, e)
+    assert w.lives == 1.5 and w.state == "playing"   # herido: sigue jugando
+    assert w.player.invuln > 0 and not w.player.dead
+    _touch(w, e)
+    assert w.lives == 1 and w.state == "dying"       # se vació el corazón: muere
+    _until_not_dying(w)
+    assert w.state == "playing" and w.player.invuln > 0 and not w.player.dead
+    _touch(w, e)
+    assert w.lives == 0.5 and w.state == "playing"
+    _touch(w, e)
     assert w.lives == 0 and w.state == "dying"
     _until_not_dying(w)
     assert w.state == "lost"
@@ -488,7 +497,7 @@ def test_player_killed_in_air_falls_and_lies_on_floor():
     p = w.player
     p.place(S.cell_pos(4, 11)[0], S.cell_pos(0, 11)[1])   # en el aire, en mitad del nivel
     p.vy = -300.0
-    w.enemies[0].place(*p.rect.topleft)
+    w.hit_player(S.DAMAGE_ATTACK)                          # alcanzado por un ataque
     step(w, 1)
     assert w.state == "dying" and p.dead and not p.landed_dead
     others = [(e.rect.topleft) for e in w.enemies]
@@ -509,7 +518,7 @@ def test_player_killed_in_air_falls_and_lies_on_floor():
 def test_closing_during_death_saves_respawned_or_nothing():
     from orbes import savegame
     w = World(1, lives=2, seed=1)
-    w.enemies[0].place(*w.player.rect.topleft)
+    w.hit_player(S.DAMAGE_ATTACK)
     step(w, 1)
     assert w.state == "dying"
     data = savegame.snapshot(w)
@@ -525,7 +534,7 @@ def test_closing_during_death_saves_respawned_or_nothing():
 
 def _kill(w):
     w.player.invuln = 0
-    w.enemies[0].place(*w.player.rect.topleft)
+    w.hit_player(S.DAMAGE_ATTACK)        # un ataque (lengua o láser) siempre mata
     step(w, 1)
     assert w.state == "dying"
 
@@ -913,3 +922,56 @@ def test_super_attack_survives_save():
     e.attack, e.super_attack = "fire", True
     r = savegame.restore(savegame.snapshot(w))
     assert r.enemies[w.enemies.index(e)].super_attack
+
+
+# --- daño: contacto medio corazón, ataque uno entero ---
+
+def test_attack_takes_a_full_heart_and_always_kills():
+    w = World(1, lives=3, seed=1)
+    w.hit_player(S.DAMAGE_ATTACK)
+    assert w.lives == 2 and w.state == "dying"
+
+
+def test_attack_after_contact_takes_half_of_two_hearts():
+    """Con un corazón a medias, un ataque quita esa mitad y la mitad del siguiente."""
+    w = World(1, lives=3, seed=1)
+    w.hit_player(S.DAMAGE_TOUCH, source=w.enemies[0])
+    assert w.lives == 2.5 and w.state == "playing"
+    w.player.invuln = 0
+    w.hit_player(S.DAMAGE_ATTACK)
+    assert w.lives == 1.5 and w.state == "dying"
+    _until_not_dying(w)
+    assert w.state == "playing" and w.lives == 1.5        # reaparece con 1 y medio
+
+
+def test_contact_pushes_player_away_from_enemy():
+    w = World(1, lives=3, seed=1)
+    e = w.enemies[0]
+    p = w.player
+    step(w, 5)
+    e.direction = 1
+    e.place(p.rect.x + 20, p.rect.y)                     # enemigo a la derecha
+    e.jump_cd = 99
+    x0 = p.rect.x
+    step(w, 1)
+    assert w.lives == 2.5
+    step(w, 8)
+    assert p.rect.x < x0                                 # empujado hacia la izquierda
+    assert p.invuln > 0
+
+
+def test_tongue_hit_is_an_attack_not_a_touch():
+    w, e, p = _duel(TongueEnemy, gap=40)
+    lives = w.lives
+    for _ in range(30):
+        step(w, 1)
+        if w.lives != lives:
+            break
+    assert w.lives == lives - S.DAMAGE_ATTACK and w.state == "dying"
+
+
+def test_half_hearts_survive_save():
+    from orbes import savegame
+    w = World(2, lives=1.5, seed=1)
+    r = savegame.restore(savegame.snapshot(w))
+    assert r.lives == 1.5
