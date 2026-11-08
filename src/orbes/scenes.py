@@ -13,7 +13,7 @@ from . import savegame
 from .controls import Controls, is_confirm, tap_position
 from . import levels
 from .translations import t
-from .ui import Button, FlagButton, draw_message_box, draw_text
+from .ui import Button, FlagButton, draw_hearts, draw_message_box, draw_text
 from .world import World
 
 IS_IOS = sys.platform == "ios"
@@ -233,8 +233,14 @@ class ScoresScene(Scene):
         for i, row in enumerate(self.rows):
             y = 130 + i * 40
             draw_text(surf, self.font, f"{i + 1:>2}.  {row['player']}", S.WHITE, topleft=(_SCORES_X, y))
-            draw_text(surf, self.font, f"{row['score']}  ({t('scores.level', level=row['level'])})", S.PLATFORM,
-                      topleft=(_SCORES_X + 185, y))
+            # Puntos, letra de la dificultad (F/M/D) y nivel alcanzado
+            r = draw_text(surf, self.font, str(row["score"]), S.PLATFORM, topleft=(_SCORES_X + 165, y))
+            difficulty = row.get("difficulty")
+            if difficulty in S.DIFFICULTIES:
+                r = draw_text(surf, self.font, t(f"difficulty_short.{difficulty}"),
+                              S.DIFFICULTY_COLORS[difficulty], topleft=(r.right + 6, y))
+            draw_text(surf, self.font, f"({t('scores.level', level=row['level'])})", S.PLATFORM,
+                      topleft=(r.right + 8, y))
         draw_text(surf, self.font, t("scores.back"), S.WHITE,
                   center=(S.LOGICAL_W // 2, S.LOGICAL_H - 60))
 
@@ -246,6 +252,8 @@ class GameScene(Scene):
         if world is None:
             world = World(level_index, lives, score, difficulty=difficulty)
         self.world = world
+        self._world_surf = None      # superficie con el nivel entero (alto variable)
+        self._brick_tile = None
         self.controls = Controls()
         self.hud = pygame.font.Font(None, 26)
         self.big = pygame.font.Font(None, 54)
@@ -304,7 +312,7 @@ class GameScene(Scene):
 
     def _save_score(self):
         name = self.app.db.get_setting("player_name", t("player.default"))
-        self.app.db.add_score(name, self.world.score, self.world.number)
+        self.app.db.add_score(name, self.world.score, self.world.number, self.world.difficulty)
 
     def _advance(self):
         w = self.world
@@ -322,11 +330,19 @@ class GameScene(Scene):
     def draw(self, surf):
         w = self.world
         surf.fill(S.BG)
-        # El mundo se dibuja en su propia zona, bajo la franja del marcador; lo que quede
-        # fuera (la parte gruesa de los bordes) se recorta solo.
-        field = surf.subsurface((0, S.HUD_H, S.FIELD_W, S.FIELD_H))
+        # El nivel entero se dibuja en su propia superficie (puede ser más alto que la
+        # pantalla) y luego se copia la parte que ve la cámara bajo la franja del marcador.
+        size = (S.FIELD_W, w.height)
+        if self._world_surf is None or self._world_surf.get_size() != size:
+            self._world_surf = pygame.Surface(size)
+        field = self._world_surf
+        field.fill(S.BG)
+        bricks = {tuple(b) for b in w.bricks}
         for s in w.solids:
-            pygame.draw.rect(field, S.SOLID, s)
+            if tuple(s) in bricks:
+                field.blit(self._brick(), s)
+            else:
+                pygame.draw.rect(field, S.SOLID, s)
         for p in w.oneway:
             pygame.draw.rect(field, S.PLATFORM, p, border_radius=5)
 
@@ -346,14 +362,19 @@ class GameScene(Scene):
         else:
             self._draw_player(field, w.player)
 
+        camera = round(w.camera_y)
+        surf.blit(field, (0, S.HUD_H), pygame.Rect(0, camera, S.FIELD_W, S.FIELD_H))
+        if w.scrolls:
+            self._draw_scroll_hints(surf, w)
+
         pygame.draw.rect(surf, (10, 12, 26), (0, 0, S.LOGICAL_W, S.HUD_H))
         hud_y = S.HUD_H // 2
         draw_text(surf, self.hud, t("hud.score", score=w.score), S.WHITE,
                   midleft=(S.BORDER, hud_y))
         level = t("hud.tutorial") if w.tutorial else t("hud.level", level=w.number)
         draw_text(surf, self.hud, level, S.WHITE, center=(S.LOGICAL_W // 2, hud_y))
-        draw_text(surf, self.hud, t("hud.lives", lives=w.lives), S.WHITE,
-                  midright=(S.LOGICAL_W - S.BORDER, hud_y))
+        # Vidas: un corazón por cada vida de la dificultad; vacíos los ya gastados
+        draw_hearts(surf, w.lives, w.rules["lives"], S.LOGICAL_W - S.BORDER, hud_y)
 
         for g in w.ghosts:  # suben por encima del marcador hasta salir de la pantalla
             self._draw_ghost(surf, g)
@@ -370,6 +391,37 @@ class GameScene(Scene):
                              accent=S.STAR_YELLOW)
         if self._overlay_visible():
             self._draw_overlay(surf)
+
+    def _brick(self):
+        """Casilla de ladrillos con llagas de cemento (se dibuja una vez y se reutiliza)."""
+        if self._brick_tile is None:
+            t = S.TILE
+            tile = pygame.Surface((t, t))
+            tile.fill(S.MORTAR)
+            rows, bw = 4, 20
+            bh = t // rows
+            for r in range(rows):
+                offset = 0 if r % 2 == 0 else -bw // 2
+                for c in range(-1, t // bw + 1):
+                    x = offset + c * bw
+                    brick = pygame.Rect(x + 1, r * bh + 1, bw - 2, bh - 2)
+                    shade = S.BRICK if (r + c) % 3 else S.BRICK_DARK
+                    pygame.draw.rect(tile, shade, brick)
+                    pygame.draw.line(tile, (200, 110, 85), brick.topleft,
+                                     (brick.right - 1, brick.top))   # brillo superior
+            pygame.draw.rect(tile, S.BRICK_DARK, tile.get_rect(), 1)
+            self._brick_tile = tile
+        return self._brick_tile
+
+    def _draw_scroll_hints(self, surf, w):
+        """Flechitas que indican que el nivel sigue por arriba o por abajo."""
+        cx = S.LOGICAL_W - S.BORDER - 10
+        if w.camera_y > 4:
+            y = S.HUD_H + 10
+            pygame.draw.polygon(surf, S.WHITE, [(cx - 6, y + 5), (cx, y - 3), (cx + 6, y + 5)])
+        if w.camera_y < w.height - S.FIELD_H - 4:
+            y = S.HUD_H + S.FIELD_H - 10
+            pygame.draw.polygon(surf, S.WHITE, [(cx - 6, y - 5), (cx, y + 3), (cx + 6, y - 5)])
 
     def _draw_tutorial_hint(self, surf, step):
         keys = "" if IS_IOS else " (Z)"
@@ -536,7 +588,8 @@ class GameScene(Scene):
         for dx in (-6, 6):
             self._draw_x_eye(layer, (body.centerx + dx, body.y + 12), 4)
         layer.set_alpha(S.GHOST_ALPHA)
-        surf.blit(layer, (g.rect.x - pad_x, S.HUD_H + g.rect.y - pad_y))
+        camera = round(self.world.camera_y)
+        surf.blit(layer, (g.rect.x - pad_x, S.HUD_H + g.rect.y - camera - pad_y))
 
     def _draw_player(self, surf, p):
         if p.invuln > 0 and int(self.t * 10) % 2 == 0:

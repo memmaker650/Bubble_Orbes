@@ -152,4 +152,5 @@ def restore(data: dict) -> World:
         raise ValueError(f"partida guardada no válida: {exc}") from exc
 
     w.message, w.message_timer = "", 0.0  # no repetir el aviso inicial del tutorial
+    w.snap_camera()
     return w

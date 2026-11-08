@@ -12,7 +12,8 @@ from .levels import parse_level
 
 log = logging.getLogger(__name__)
 
-# Zona interior del nivel (dentro de los bordes)
+# Zona interior de un nivel de 16 filas (dentro de los bordes). Cada mundo tiene la suya
+# en ``World.interior``, que depende de la altura del nivel.
 INTERIOR = Rect(S.BORDER, S.BORDER, S.FIELD_W - 2 * S.BORDER, S.FIELD_H - 2 * S.BORDER)
 
 # Pasos del tutorial, en orden. Cada uno se completa con el evento del mismo nombre;
@@ -77,7 +78,12 @@ class World:
         self.level = levels.LEVELS[self.level_index]
         data = parse_level(self.level.rows)
         self.solids = data.solids
+        self.bricks = data.bricks
         self.oneway = data.oneway
+        self.height = data.height                 # alto del mundo (px)
+        self.floor_y = data.height - S.BORDER     # superficie del suelo
+        self.interior = Rect(S.BORDER, S.BORDER, S.FIELD_W - 2 * S.BORDER,
+                             data.height - 2 * S.BORDER)
         self.spawn = data.player_spawn
         self.player = Player(*self.spawn)
         speed = S.ENEMY_BASE_SPEED + S.ENEMY_SPEED_STEP * max(0, self.number - 1)
@@ -89,6 +95,27 @@ class World:
             e.attack_delay = self.rules["attack_delay"]
         self.bubbles: list[Bubble] = []
         self.star = Star(*data.star_pos) if data.star_pos else None
+        self.camera_y = 0.0
+        self.snap_camera()
+
+    # --- cámara (scroll vertical) ---
+    @property
+    def scrolls(self) -> bool:
+        """El nivel es más alto que la pantalla."""
+        return self.height > S.FIELD_H
+
+    def _camera_target(self) -> float:
+        target = self.player.rect.centery - S.FIELD_H * S.CAMERA_ANCHOR
+        return min(max(target, 0.0), float(self.height - S.FIELD_H))  # sin salirse del nivel
+
+    def snap_camera(self):
+        """Coloca la cámara directamente sobre el jugador (al empezar o al reaparecer)."""
+        self.camera_y = self._camera_target()
+
+    def _update_camera(self, dt):
+        target = self._camera_target()
+        self.camera_y += (target - self.camera_y) * min(1.0, dt * S.CAMERA_SMOOTH)
+        self.camera_y = min(max(self.camera_y, 0.0), float(self.height - S.FIELD_H))
 
     @property
     def level_points(self) -> int:
@@ -106,6 +133,7 @@ class World:
     def update(self, dt, actions):
         self.message_timer = max(0.0, self.message_timer - dt)
         self._update_ghosts(dt)
+        self._update_camera(dt)
         if self.state == "dying":
             self._update_dying(dt)
             return
@@ -152,23 +180,24 @@ class World:
         dx = p.vx * t
         dy = 0.0 if p.on_ground or p.coyote > 0 else p.vy * t + 0.5 * S.GRAVITY * t * t
         r = p.rect.move(round(dx), round(dy))
-        return r.clamp(INTERIOR)
+        return r.clamp(self.interior)
 
     # --- red de seguridad ---
     def _rescue_escaped(self):
         """Devuelve al campo a quien se haya salido de él, para que el nivel nunca se bloquee
         (un enemigo vivo fuera de la pantalla haría imposible terminarlo)."""
         for e in self.enemies:
-            if e.alive and e.state == "walk" and not INTERIOR.colliderect(e.rect):
+            if e.alive and e.state == "walk" and not self.interior.colliderect(e.rect):
                 log.warning("Enemigo %s fuera del campo en %s; vuelve a su inicio",
                             e.kind, e.rect.topleft)
                 e.place(*e.spawn)
                 e.vx = e.vy = 0.0
                 e.attack = None
         p = self.player
-        if not INTERIOR.colliderect(p.rect):
+        if not self.interior.colliderect(p.rect):
             log.warning("Jugador fuera del campo en %s; vuelve al inicio", p.rect.topleft)
             p.respawn(self.spawn)
+            self.snap_camera()
 
     # --- estrella ---
     def _check_star(self):
@@ -334,8 +363,9 @@ class World:
             return
         self.player.respawn(self.spawn)
         self.state = "playing"
+        self.snap_camera()           # reaparece abajo del todo: la cámara salta con él
 
     def _update_ghosts(self, dt):
         for g in self.ghosts:
             g.update(dt)
-        self.ghosts = [g for g in self.ghosts if not g.gone]
+        self.ghosts = [g for g in self.ghosts if not g.gone(self.camera_y)]

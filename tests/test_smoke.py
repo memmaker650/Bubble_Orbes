@@ -141,3 +141,53 @@ def test_death_animations_draw(tmp_path):
     assert w.state == "lost" and game._overlay_visible()
     assert not app.db.has_saved_game()
     app.db.close()
+
+
+def test_game_over_saves_score_with_difficulty(tmp_path):
+    from orbes.scenes import GameScene
+    app = App(db_path=tmp_path / "t.db")
+    game = GameScene(app, level_index=1, difficulty="hard")
+    w = game.world
+    w.score = 450
+    w.state = "lost"
+    game.update(1 / 60)
+    row = app.db.top_scores()[0]
+    assert row["score"] == 450 and row["difficulty"] == "hard"
+    app.db.close()
+
+
+def test_hud_hearts_match_difficulty(tmp_path):
+    from orbes import settings as S
+    from orbes.scenes import GameScene
+    from orbes import ui
+    calls = []
+    real = ui.draw_heart
+    ui.draw_heart = lambda surf, center, size, filled: calls.append(filled) or real(surf, center, size, filled)
+    try:
+        app = App(db_path=tmp_path / "t.db")
+        for difficulty in ("easy", "normal", "hard"):
+            game = GameScene(app, level_index=1, difficulty=difficulty)
+            game.world.lives -= 1                      # una vida gastada
+            calls.clear()
+            game.draw(app.display.surface)
+            total = S.DIFFICULTIES[difficulty]["lives"]
+            assert len(calls) == total
+            assert calls == [True] * (total - 1) + [False]   # la última, vacía
+        app.db.close()
+    finally:
+        ui.draw_heart = real
+
+
+def test_scores_screen_shows_difficulty_letter(tmp_path):
+    from orbes.scenes import ScoresScene
+    from orbes import translations
+    app = App(db_path=tmp_path / "t.db")
+    app.db.add_score("Ana", 900, 3, "hard")
+    app.db.add_score("Leo", 500, 2, "easy")
+    app.db.add_score("Viejo", 100, 1)
+    scene = ScoresScene(app)
+    scene.draw(app.display.surface)             # sin errores con y sin dificultad
+    translations.set_language("es")
+    from orbes.translations import t
+    assert [t(f"difficulty_short.{d}") for d in ("easy", "normal", "hard")] == ["F", "M", "D"]
+    app.db.close()

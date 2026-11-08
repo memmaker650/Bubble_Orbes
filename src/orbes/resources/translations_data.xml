@@ -17,7 +17,6 @@
     <text key="scores.level">N{level}</text>
     <text key="hud.score">Puntos {score}</text>
     <text key="hud.level">Nivel {level}</text>
-    <text key="hud.lives">Vidas {lives}</text>
     <text key="star.kill_all">Mata a todos los enemigos para terminar el nivel</text>
     <text key="win.title">Nivel {level} completado</text>
     <text key="win.game">¡Has ganado el juego!</text>
@@ -50,6 +49,9 @@
     <text key="difficulty.normal">Medio</text>
     <text key="difficulty.hard">Difícil</text>
     <text key="common.back">Volver</text>
+    <text key="difficulty_short.easy">F</text>
+    <text key="difficulty_short.normal">M</text>
+    <text key="difficulty_short.hard">D</text>
   </language>
   <language code="en" name="English" flag="uk">
     <text key="menu.subtitle">Trap enemies in bubbles and pop them</text>
@@ -62,7 +64,6 @@
     <text key="scores.level">L{level}</text>
     <text key="hud.score">Score {score}</text>
     <text key="hud.level">Level {level}</text>
-    <text key="hud.lives">Lives {lives}</text>
     <text key="star.kill_all">Defeat all the enemies to finish the level</text>
     <text key="win.title">Level {level} complete</text>
     <text key="win.game">You beat the game!</text>
@@ -95,6 +96,9 @@
     <text key="difficulty.normal">Medium</text>
     <text key="difficulty.hard">Hard</text>
     <text key="common.back">Back</text>
+    <text key="difficulty_short.easy">E</text>
+    <text key="difficulty_short.normal">M</text>
+    <text key="difficulty_short.hard">H</text>
   </language>
   <language code="fr" name="Français" flag="fr">
     <text key="menu.subtitle">Piégez les ennemis dans des bulles</text>
@@ -107,7 +111,6 @@
     <text key="scores.level">N{level}</text>
     <text key="hud.score">Points {score}</text>
     <text key="hud.level">Niveau {level}</text>
-    <text key="hud.lives">Vies {lives}</text>
     <text key="star.kill_all">Éliminez tous les ennemis pour terminer le niveau</text>
     <text key="win.title">Niveau {level} terminé</text>
     <text key="win.game">Vous avez gagné la partie !</text>
@@ -140,5 +143,8 @@
     <text key="difficulty.normal">Moyen</text>
     <text key="difficulty.hard">Difficile</text>
     <text key="common.back">Retour</text>
+    <text key="difficulty_short.easy">F</text>
+    <text key="difficulty_short.normal">M</text>
+    <text key="difficulty_short.hard">D</text>
   </language>
 </translations>

@@ -1,9 +1,11 @@
 """Niveles: se cargan desde ficheros JSON en ``resources/levels`` (ver level_generator.py).
 
-Cada mapa describe solo el interior del nivel: 16 filas de 9 caracteres. Los bordes (finos)
-se añaden solos alrededor; ``#`` sirve para poner bloques u obstáculos dentro.
+Cada mapa describe solo el interior del nivel: 9 caracteres por fila y 16 filas o más. Si
+tiene más de 16, el nivel es más alto que la pantalla y se hace scroll vertical. Los bordes
+(finos) se añaden solos alrededor; ``#`` sirve para poner bloques u obstáculos dentro.
 
   #  bloque sólido      =  plataforma (se puede atravesar saltando desde abajo)
+  L  ladrillo/cemento: sólido que además sirve de parapeto (bloquea ataques y visión)
   P  inicio del jugador E  enemigo rojo (lengua)
   B  enemigo azul (láser por los ojos)
   S  estrella de fin de nivel
@@ -11,7 +13,7 @@ se añaden solos alrededor; ``#`` sirve para poner bloques u obstáculos dentro.
 
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from pygame import Rect
@@ -83,12 +85,15 @@ class LevelData:
     player_spawn: tuple
     enemy_spawns: list
     star_pos: tuple | None = None
+    bricks: list = field(default_factory=list)   # ladrillos (también están en solids)
+    height: int = 0                              # alto del mundo en px (con bordes)
+    rows: int = 0
 
 
-def border_walls() -> list:
+def border_walls(height=S.FIELD_H) -> list:
     """Bordes del nivel. Se ven de BORDER px, pero por fuera son gruesos (una casilla más)
     para que nada los atraviese aunque caiga muy rápido."""
-    t, w, h, b = S.TILE, S.FIELD_W, S.FIELD_H, S.BORDER
+    t, w, h, b = S.TILE, S.FIELD_W, height, S.BORDER
     return [
         Rect(-t, -t, w + 2 * t, t + b),          # techo
         Rect(-t, h - b, w + 2 * t, t + b),       # suelo
@@ -98,9 +103,11 @@ def border_walls() -> list:
 
 
 def parse_level(rows) -> LevelData:
-    if len(rows) != S.ROWS:
-        raise ValueError(f"El nivel debe tener {S.ROWS} filas, tiene {len(rows)}")
-    solids, oneway, enemies, spawn, star = border_walls(), [], [], None, None
+    if len(rows) < S.ROWS:
+        raise ValueError(f"El nivel debe tener al menos {S.ROWS} filas, tiene {len(rows)}")
+    height = S.level_height(len(rows))
+    solids, oneway, enemies, spawn, star = border_walls(height), [], [], None, None
+    bricks = []
     for r, row in enumerate(rows):
         if len(row) != S.COLS:
             raise ValueError(f"Fila {r}: debe tener {S.COLS} columnas")
@@ -108,6 +115,10 @@ def parse_level(rows) -> LevelData:
             x, y = S.cell_pos(c, r)
             if ch == "#":
                 solids.append(Rect(x, y, S.TILE, S.TILE))
+            elif ch == "L":
+                brick = Rect(x, y, S.TILE, S.TILE)
+                solids.append(brick)
+                bricks.append(brick)
             elif ch == "=":
                 oneway.append(Rect(x, y, S.TILE, 12))
             elif ch == "P":
@@ -120,7 +131,7 @@ def parse_level(rows) -> LevelData:
                 raise ValueError(f"Fila {r}, columna {c}: carácter desconocido {ch!r}")
     if spawn is None:
         raise ValueError("El nivel no tiene inicio de jugador 'P'")
-    return LevelData(solids, oneway, spawn, enemies, star)
+    return LevelData(solids, oneway, spawn, enemies, star, bricks, height, len(rows))
 
 
 _cache: list | None = None

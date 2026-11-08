@@ -3,7 +3,8 @@
 # --- Pantalla lógica (relación ~ iPhone en vertical) ---
 TILE = 40
 COLS = 9                       # casillas interiores del nivel (los bordes no cuentan)
-ROWS = 16
+ROWS = 16                      # filas visibles en pantalla (y mínimo de un nivel); un nivel
+                               # puede tener más filas y entonces se hace scroll vertical
 BORDER = 12                    # grosor visible de los bordes del nivel (antes 1 casilla = 40)
 FIELD_W = COLS * TILE + 2 * BORDER   # 384
 FIELD_H = ROWS * TILE + 2 * BORDER   # 664  -> zona de juego (coordenadas del mundo)
@@ -11,13 +12,22 @@ HUD_H = 28                     # franja superior con puntos, nivel y vidas
 CONTROLS_H = 120               # barra de controles táctiles
 LOGICAL_W = FIELD_W
 LOGICAL_H = HUD_H + FIELD_H + CONTROLS_H   # 812 (misma proporción que antes)
-FLOOR_Y = FIELD_H - BORDER     # altura del suelo (borde inferior)
+FLOOR_Y = FIELD_H - BORDER     # altura del suelo en un nivel de 16 filas (borde inferior)
+
+
+def level_height(rows):
+    """Alto del mundo (px) para un nivel de `rows` filas, con sus bordes."""
+    return rows * TILE + 2 * BORDER
 
 
 def cell_pos(col, row):
     """Esquina superior izquierda de una casilla interior en coordenadas del mundo."""
     return BORDER + col * TILE, BORDER + row * TILE
 FPS = 60
+
+# --- Cámara (niveles más altos que la pantalla) ---
+CAMERA_ANCHOR = 0.55           # el jugador se mantiene a esta altura de la pantalla (0 arriba)
+CAMERA_SMOOTH = 7.0            # rapidez con que la cámara alcanza al jugador
 
 # --- Física ---
 GRAVITY = 1500.0
@@ -136,3 +146,9 @@ BUTTON = (50, 60, 120)
 STAR_YELLOW = (255, 215, 40)
 STAR_BLUE = (60, 140, 255)
 PANEL = (28, 32, 70)
+BRICK = (172, 78, 56)
+BRICK_DARK = (130, 55, 40)
+MORTAR = (178, 170, 156)
+HEART = (235, 60, 80)
+HEART_EMPTY = (150, 110, 125)
+DIFFICULTY_COLORS = {"easy": (110, 210, 130), "normal": (255, 215, 40), "hard": (240, 90, 90)}

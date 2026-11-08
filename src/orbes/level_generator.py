@@ -39,6 +39,45 @@ TEMPLATE = [
 ]
 EMPTY = " " * 9
 
+# Nivel alto (32 filas = 2 pantallas): se empieza abajo y se sube con scroll vertical.
+# Plataformas cada 3 filas alternando centro (columnas 2-6) y laterales (0-2 y 6-8); se pasa
+# de unas a otras por las columnas 2 y 6. Los ladrillos (L) sirven de parapeto: bloquean el
+# paso, la vista de los enemigos, la lengua, el láser y las burbujas.
+TALL_LEVEL = [
+    "    S    ",
+    "  B L E  ",
+    "  =====  ",
+    "         ",
+    "E       L",
+    "===   ===",
+    "         ",
+    "    L    ",
+    "  =====  ",
+    "         ",
+    "B       E",
+    "===   ===",
+    "         ",
+    "   L B   ",
+    "  =====  ",
+    "         ",
+    "LE      B",
+    "===   ===",
+    "         ",
+    "  E L    ",
+    "  =====  ",
+    "         ",
+    "E       B",
+    "===   ===",
+    "         ",
+    "    L    ",
+    "  =====  ",
+    "         ",
+    "         ",
+    "===   ===",
+    "         ",
+    "    P    ",
+]
+
 
 class LevelGenerator:
     """Crea niveles a partir de una plantilla con huecos ({r3}, {r12}, {m}) y los guarda en JSON."""
@@ -65,7 +104,13 @@ class LevelGenerator:
             self.make(1, level1),
             self.make(2, self.build_map(r3="   E B   ", m="B")),            # 3 rojos + 2 azules
             self.make(3, self.build_map(r3="   B B   ", r12="E       B")),  # 4 rojos + 3 azules
+            self.make(4, self.tall_map(), name="La torre"),               # alto, con ladrillos
         ]
+
+    def tall_map(self) -> list[str]:
+        rows = list(TALL_LEVEL)
+        parse_level(rows)
+        return rows
 
     @staticmethod
     def filename(level: LevelDef) -> str:

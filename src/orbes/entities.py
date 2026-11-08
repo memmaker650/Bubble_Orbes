@@ -194,13 +194,28 @@ class Enemy(Body):
         self.angry = True
         self.vy = 0.0
 
-    def sees(self, target) -> bool:
-        """El objetivo está delante, a la altura de los ojos y dentro del alcance."""
+    def sees(self, target, solids=()) -> bool:
+        """El objetivo está delante, a la altura de los ojos, dentro del alcance y sin ningún
+        sólido (ladrillos, bloques, bordes) en medio."""
         eye_y = self.rect.y + self.EYE_Y
         if not (target.top - 6 <= eye_y <= target.bottom + 6):
             return False
         dx = target.centerx - self.rect.centerx
-        return dx * self.direction > 0 and abs(dx) <= self.SIGHT
+        if not (dx * self.direction > 0 and abs(dx) <= self.SIGHT):
+            return False
+        return not self.blocked_between(target, solids)
+
+    def blocked_between(self, target, solids) -> bool:
+        """Hay un sólido entre los ojos y el objetivo (a la altura de los ojos)."""
+        eye_y = self.rect.y + self.EYE_Y
+        if self.direction > 0:
+            left, right = self.rect.right, target.left
+        else:
+            left, right = target.right, self.rect.left
+        if right <= left:
+            return False
+        line = Rect(left, eye_y - 1, right - left, 2)
+        return any(line.colliderect(s) for s in solids)
 
     def update(self, dt, solids, oneway, target=None, predicted=None):
         """``target``: rectángulo del jugador (None = no ataca, p. ej. en el tutorial).
@@ -211,7 +226,8 @@ class Enemy(Body):
         if self.cooldown <= 0:
             self.tired = False       # ya se ha recuperado
         seen = target is not None and (
-            self.sees(target) or (predicted is not None and self.sees(predicted)))
+            self.sees(target, solids)
+            or (predicted is not None and self.sees(predicted, solids)))
         if self.attack is None and self.cooldown <= 0 and self.coyote > 0 and seen:
             self.sight_t += dt
             if self.sight_t >= self.attack_delay - 1e-9:
@@ -260,10 +276,30 @@ class TongueEnemy(Enemy):
     SIGHT = S.TONGUE_RANGE + 14
     MOUTH_Y = 22
 
+    def __init__(self, x, y, speed, rng):
+        super().__init__(x, y, speed, rng)
+        self.reach = S.TONGUE_RANGE   # hasta dónde puede llegar la lengua (sin atravesar muros)
+
     def _start_attack(self, solids):
         self.attack = "tongue"
+        self._measure_reach(solids)
+
+    def _measure_reach(self, solids):
+        """La lengua se para en el primer sólido (ladrillo, bloque o borde) que encuentre."""
+        mx, my = self.mouth()
+        band = Rect(0, my - 5, 1, 10)
+        reach = float(S.TONGUE_RANGE)
+        for s in solids:
+            if not (s.top < band.bottom and s.bottom > band.top):
+                continue
+            if self.direction > 0 and s.left >= mx - 1:
+                reach = min(reach, s.left - mx)
+            elif self.direction < 0 and s.right <= mx + 1:
+                reach = min(reach, mx - s.right)
+        self.reach = max(0.0, reach)
 
     def _attack_step(self, solids):
+        self._measure_reach(solids)
         if self.attack_t >= S.TONGUE_OUT + S.TONGUE_HOLD + S.TONGUE_IN:
             self._end_attack(S.TONGUE_COOLDOWN)
             self.tired = True        # mientras recarga va cansado, con la lengua fuera
@@ -279,7 +315,7 @@ class TongueEnemy(Enemy):
             k = 1.0
         else:
             k = max(0.0, 1.0 - (t - S.TONGUE_OUT - S.TONGUE_HOLD) / S.TONGUE_IN)
-        return S.TONGUE_RANGE * k
+        return min(S.TONGUE_RANGE * k, self.reach)
 
     def mouth(self):
         x = self.rect.right if self.direction > 0 else self.rect.left
@@ -435,7 +471,7 @@ class Ghost:
         self.fx += math.sin(self.t * 4) * 25 * dt   # leve vaivén al subir
         self.rect.topleft = (round(self.fx), round(self.fy))
 
-    @property
-    def gone(self) -> bool:
-        """Ya ha salido por el borde superior de la pantalla (por encima del marcador)."""
-        return self.rect.bottom + 12 < -S.HUD_H
+    def gone(self, camera_y=0.0) -> bool:
+        """Ya ha salido por el borde superior de la pantalla (por encima del marcador).
+        ``camera_y``: altura del mundo que se ve arriba del todo (niveles con scroll)."""
+        return self.rect.bottom + 12 < camera_y - S.HUD_H

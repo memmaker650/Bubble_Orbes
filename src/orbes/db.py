@@ -31,6 +31,13 @@ CREATE TABLE IF NOT EXISTS saved_game (
 PRAGMA user_version = 2;
 """
 
+# Dificultad con la que se consiguió cada puntuación ("easy" | "normal" | "hard").
+# Las puntuaciones anteriores se quedan sin dato (NULL).
+SCHEMA_V3 = """
+ALTER TABLE scores ADD COLUMN difficulty TEXT;
+PRAGMA user_version = 3;
+"""
+
 log = logging.getLogger(__name__)
 
 
@@ -58,23 +65,25 @@ class Database:
             self.conn.executescript(SCHEMA_V1)
         if version < 2:
             self.conn.executescript(SCHEMA_V2)
-        # Futuras migraciones: if version < 3: ...
+        if version < 3:
+            self.conn.executescript(SCHEMA_V3)
+        # Futuras migraciones: if version < 4: ...
 
     def close(self):
         self.conn.close()
 
     # --- puntuaciones ---
-    def add_score(self, player: str, score: int, level: int) -> int:
+    def add_score(self, player: str, score: int, level: int, difficulty: str | None = None) -> int:
         with self.conn:
             cur = self.conn.execute(
-                "INSERT INTO scores (player, score, level) VALUES (?, ?, ?)",
-                (player, int(score), int(level)),
+                "INSERT INTO scores (player, score, level, difficulty) VALUES (?, ?, ?, ?)",
+                (player, int(score), int(level), difficulty),
             )
         return cur.lastrowid
 
     def top_scores(self, limit: int = 10) -> list[dict]:
         rows = self.conn.execute(
-            "SELECT player, score, level, created_at FROM scores "
+            "SELECT player, score, level, difficulty, created_at FROM scores "
             "ORDER BY score DESC, id ASC LIMIT ?",
             (limit,),
         ).fetchall()

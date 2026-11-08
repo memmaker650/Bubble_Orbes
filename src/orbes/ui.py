@@ -1,5 +1,7 @@
 """Utilidades de interfaz mínimas."""
 
+import math
+
 import pygame
 
 from . import settings as S
@@ -19,6 +21,43 @@ def draw_text(surf, font, text, color, center=None, topleft=None, midleft=None, 
         rect.midright = midright
     surf.blit(img, rect)
     return rect
+
+
+_heart_cache: dict = {}
+
+
+def heart_points(center, size):
+    """Polígono de un corazón de `size` px de ancho centrado en `center` (curva clásica)."""
+    key = size
+    unit = _heart_cache.get(key)
+    if unit is None:
+        unit = []
+        for i in range(40):
+            t = 2 * math.pi * i / 40
+            x = 16 * math.sin(t) ** 3
+            y = -(13 * math.cos(t) - 5 * math.cos(2 * t) - 2 * math.cos(3 * t) - math.cos(4 * t))
+            unit.append((x * size / 34, (y + 2) * size / 34))
+        _heart_cache[key] = unit
+    cx, cy = center
+    return [(cx + x, cy + y) for x, y in unit]
+
+
+def draw_heart(surf, center, size, filled):
+    """Corazón relleno (vida que queda) o solo el borde (vida gastada)."""
+    pts = heart_points(center, size)
+    if filled:
+        pygame.draw.polygon(surf, S.HEART, pts)
+        pygame.draw.polygon(surf, (255, 150, 160), pts, 1)   # brillo en el contorno
+    else:
+        pygame.draw.polygon(surf, S.HEART_EMPTY, pts, 2)
+
+
+def draw_hearts(surf, lives, total, right, center_y, size=14, gap=4):
+    """Fila de `total` corazones alineada a la derecha: los `lives` primeros, rellenos."""
+    total = max(total, lives)
+    for i in range(total):
+        x = right - size / 2 - (total - 1 - i) * (size + gap)
+        draw_heart(surf, (x, center_y), size, filled=i < lives)
 
 
 _fonts: dict = {}
