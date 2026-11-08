@@ -124,8 +124,25 @@ class Player(Body):
         self.shoot_cd = 0.0
         self.invuln = 0.0
         self.just_dropped = False  # este frame ha bajado de una plataforma
+        self.jumps = 0             # 0 en el suelo, 1 tras el salto corto, 2 tras el doble
+        self.jump_start = 0        # altura (pies) desde la que despegó
         self.dead = False          # animación de muerte en curso
         self.landed_dead = False   # ya ha caído tumbado al suelo
+
+    def _jump(self):
+        """Primera pulsación (en el suelo): salto corto, la mitad de alto. Segunda pulsación
+        (en el aire, tras ese salto): sigue subiendo hasta la altura del salto completo."""
+        if self.coyote > 0:
+            self.vy = -S.JUMP_V_SHORT
+            self.coyote = 0.0
+            self.jumps = 1
+            self.jump_start = self.rect.bottom
+        elif self.jumps == 1:
+            apex = self.jump_start - S.JUMP_FULL_H          # cima del salto completo
+            remaining = self.rect.bottom - apex
+            if remaining > 1:
+                self.vy = -(2 * S.GRAVITY * remaining) ** 0.5
+            self.jumps = 2
 
     def respawn(self, spawn):
         self.place(spawn[0] + 6, spawn[1] + 8)
@@ -142,10 +159,11 @@ class Player(Body):
         if "down" in just and "jump" not in just:
             # bajar de la plataforma (una por pulsación)
             self.just_dropped = self.drop_through(solids, oneway)
-        elif "jump" in just and self.coyote > 0:
-            self.vy = -S.JUMP_V
-            self.coyote = 0.0
+        elif "jump" in just:
+            self._jump()
         self.physics(dt, solids, oneway)
+        if self.on_ground:
+            self.jumps = 0
         self.shoot_cd = max(0.0, self.shoot_cd - dt)
         self.invuln = max(0.0, self.invuln - dt)
 

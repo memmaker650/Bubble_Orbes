@@ -74,7 +74,9 @@ def test_tall_level_can_be_climbed_to_the_star():
     step(w, 10)
     top_platform = S.cell_pos(0, 2)[1]
     for _ in range(20):                               # 10 plataformas: de sobra
-        step(w, 1, {"jump"})
+        step(w, 1, {"jump"})                          # salto doble: pulsar...
+        step(w, 6)
+        step(w, 1, {"jump"})                          # ...y volver a pulsar en el aire
         for _ in range(120):
             step(w, 1)
             if p.on_ground:
@@ -90,6 +92,8 @@ def test_tall_level_can_be_climbed_to_the_star():
         x = p.rect.x
         step(w, 1, {"right"} if p.rect.centerx < w.star.rect.centerx else {"left"})
         if p.rect.x == x and p.on_ground:             # bloqueado por el ladrillo: salta
+            step(w, 1, {"jump", "right"})
+            step(w, 6, {"right"})
             step(w, 1, {"jump", "right"})
         elif abs(p.rect.centerx - w.star.rect.centerx) < 6 and p.on_ground:
             step(w, 1, {"jump"})

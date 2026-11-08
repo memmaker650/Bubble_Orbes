@@ -98,7 +98,10 @@ def test_tutorial_guides_through_steps():
     assert w.tutorial_step == "jump"
     step(w, 1)
     step(w, 1, {"jump"})
-    assert w.tutorial_step == "drop"
+    assert w.tutorial_step == "jump"         # un salto corto no basta...
+    step(w, 6)
+    step(w, 1, {"jump"})
+    assert w.tutorial_step == "drop"         # ...hace falta la segunda pulsación en el aire
     step(w, 60)
     step(w, 1, {"down"})                     # en el suelo no cuenta: no hay nada que bajar
     assert w.tutorial_step == "drop"

@@ -32,7 +32,12 @@ CAMERA_SMOOTH = 7.0            # rapidez con que la cámara alcanza al jugador
 # --- Física ---
 GRAVITY = 1500.0
 MAX_FALL = 700.0
-JUMP_V = 640.0                 # ~136 px de salto: llega a plataformas a 3 filas
+JUMP_V = 640.0                 # salto completo ~136 px: llega a plataformas a 3 filas
+JUMP_FULL_H = JUMP_V ** 2 / (2 * GRAVITY)       # altura del salto completo (~136 px)
+# Jugador: una pulsación salta la mitad de alto; una segunda pulsación en el aire completa el
+# salto hasta JUMP_FULL_H (desde donde despegó). Los enemigos siguen usando JUMP_V.
+JUMP_SHORT_FACTOR = 0.5        # fracción de la altura completa con una sola pulsación
+JUMP_V_SHORT = (2 * GRAVITY * JUMP_FULL_H * JUMP_SHORT_FACTOR) ** 0.5
 PLAYER_SPEED = 170.0
 COYOTE_TIME = 0.08
 DROP_TIME = 0.2                # al pulsar abajo, ignora las plataformas finas este tiempo

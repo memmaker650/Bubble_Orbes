@@ -309,6 +309,7 @@ class GameScene(Scene):
             self.app.db.clear_game()  # partida perdida: no hay nada que continuar
             if not w.tutorial:
                 self._save_score()
+                self.app.db.reset_progress()  # se vuelve a empezar desde el nivel 1
 
     def _save_score(self):
         name = self.app.db.get_setting("player_name", t("player.default"))

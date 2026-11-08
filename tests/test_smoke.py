@@ -191,3 +191,57 @@ def test_scores_screen_shows_difficulty_letter(tmp_path):
     from orbes.translations import t
     assert [t(f"difficulty_short.{d}") for d in ("easy", "normal", "hard")] == ["F", "M", "D"]
     app.db.close()
+
+
+def test_game_over_restarts_from_level_one(tmp_path):
+    from orbes.scenes import GameScene, MenuScene, PlayScene
+    app = App(db_path=tmp_path / "t.db")
+    app.db.unlock_level(3, 4)                       # había llegado al nivel 3
+    play = PlayScene(app)
+    assert play._next_level_index() == 3 and "3" in dict(play.buttons)["start"].label
+
+    game = GameScene(app, level_index=3)
+    game.world.lives = 1
+    game.world.enemies[0].place(*game.world.player.rect.topleft)
+    game.world.player.invuln = 0
+    for _ in range(60 * 6):                         # muerte final con su animación
+        game.update(1 / 60)
+        if game.world.state == "lost":
+            break
+    game.update(1 / 60)
+    assert game.world.state == "lost"
+    assert app.db.unlocked_level() == 1
+    assert not app.db.has_saved_game()
+    assert "continue" not in dict(MenuScene(app).buttons)
+
+    play = PlayScene(app)
+    assert "1" in dict(play.buttons)["start"].label
+    play._activate("start")
+    assert app.scene.world.number == 1
+    app.db.close()
+
+
+def test_continue_keeps_level_unlike_new_game(tmp_path):
+    from orbes import savegame
+    from orbes.scenes import MenuScene
+    from orbes.world import World
+    app = App(db_path=tmp_path / "t.db")
+    app.db.unlock_level(3, 4)
+    app.db.save_game(savegame.snapshot(World(3, lives=2, score=1500, seed=1)))
+    menu = MenuScene(app)
+    menu._activate("continue")
+    w = app.scene.world
+    assert (w.number, w.lives, w.score) == (3, 2, 1500)   # continuar: donde lo dejó
+    assert app.db.unlocked_level() == 3                  # y sin perder el progreso
+    app.db.close()
+
+
+def test_tutorial_never_resets_progress(tmp_path):
+    from orbes.scenes import GameScene
+    app = App(db_path=tmp_path / "t.db")
+    app.db.unlock_level(3, 4)
+    game = GameScene(app, level_index=0)
+    game.world.state = "lost"                        # (en el tutorial no se puede perder)
+    game.update(1 / 60)
+    assert app.db.unlocked_level() == 3
+    app.db.close()

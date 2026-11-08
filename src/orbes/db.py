@@ -113,6 +113,10 @@ class Database:
         if level > self.unlocked_level():
             self.set_setting("unlocked_level", level)
 
+    def reset_progress(self) -> None:
+        """Fin de la partida: la próxima partida nueva vuelve a empezar desde el nivel 1."""
+        self.set_setting("unlocked_level", 1)
+
     # --- partida guardada ---
     def save_game(self, data: dict) -> None:
         with self.conn:

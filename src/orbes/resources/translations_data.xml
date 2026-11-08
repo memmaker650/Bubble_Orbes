@@ -33,7 +33,7 @@
     <text key="win.next">Ya estás listo para el nivel 1</text>
     <text key="tutorial.safe">Tutorial: aquí los enemigos no te hacen daño</text>
     <text key="tutorial.move">Muévete con las flechas izquierda y derecha</text>
-    <text key="tutorial.jump">Salta con la flecha hacia arriba</text>
+    <text key="tutorial.jump">Salta con la flecha hacia arriba; púlsala otra vez en el aire para saltar más alto</text>
     <text key="tutorial.drop">Sube a una plataforma y bájate de ella con la flecha hacia abajo</text>
     <text key="tutorial.bubble">Lanza una burbuja con el botón del círculo{keys}</text>
     <text key="tutorial.trap">Lanza una burbuja contra un enemigo para atraparlo</text>
@@ -80,7 +80,7 @@
     <text key="win.next">You're ready for level 1</text>
     <text key="tutorial.safe">Tutorial: enemies can't hurt you here</text>
     <text key="tutorial.move">Move with the left and right arrows</text>
-    <text key="tutorial.jump">Jump with the up arrow</text>
+    <text key="tutorial.jump">Jump with the up arrow; press it again in the air to jump higher</text>
     <text key="tutorial.drop">Climb onto a platform and drop down through it with the down arrow</text>
     <text key="tutorial.bubble">Blow a bubble with the circle button{keys}</text>
     <text key="tutorial.trap">Hit an enemy with a bubble to trap it</text>
@@ -127,7 +127,7 @@
     <text key="win.next">Vous êtes prêt pour le niveau 1</text>
     <text key="tutorial.safe">Tutoriel : ici, les ennemis ne vous blessent pas</text>
     <text key="tutorial.move">Déplacez-vous avec les flèches gauche et droite</text>
-    <text key="tutorial.jump">Sautez avec la flèche vers le haut</text>
+    <text key="tutorial.jump">Sautez avec la flèche vers le haut ; appuyez à nouveau en l'air pour sauter plus haut</text>
     <text key="tutorial.drop">Montez sur une plateforme et descendez-en avec la flèche vers le bas</text>
     <text key="tutorial.bubble">Lancez une bulle avec le bouton rond{keys}</text>
     <text key="tutorial.trap">Touchez un ennemi avec une bulle pour le piéger</text>

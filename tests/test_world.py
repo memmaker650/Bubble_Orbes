@@ -12,6 +12,13 @@ def step(world, n, actions=()):
         world.update(DT, set(actions))
 
 
+def double_jump(world):
+    """Salto completo: pulsar, soltar un instante y volver a pulsar en el aire."""
+    step(world, 1, {"jump"})
+    step(world, 6)
+    step(world, 1, {"jump"})
+
+
 @pytest.mark.parametrize("i", range(len(LEVELS)))
 def test_levels_parse(i):
     data = parse_level(LEVELS[i].rows)
@@ -39,7 +46,7 @@ def test_player_can_reach_first_platform():
     p.place(x, S.FLOOR_Y - p.rect.height)
     step(w, 10)
     assert p.rect.bottom == S.FLOOR_Y
-    step(w, 1, {"jump"})
+    double_jump(w)                     # hace falta el salto doble para subir 3 filas
     step(w, 80)
     # Atraviesa la plataforma desde abajo y aterriza encima de ella.
     assert p.rect.bottom == platform_y
@@ -767,3 +774,72 @@ def test_down_key_and_button_exist():
     rects = list(BUTTONS.values())
     assert all(a.right < b.left for a, b in zip(rects, rects[1:]))   # sin solaparse
     assert rects[-1].right <= S.LOGICAL_W - 5
+
+
+
+# --- salto corto y doble pulsación ---
+
+def _jump_height(presses):
+    w = World(1, seed=1)
+    for e in w.enemies:
+        e.alive = False
+    p = w.player
+    step(w, 10)
+    y0 = top = p.rect.bottom
+    for f in range(90):
+        step(w, 1, {"jump"} if f in presses else ())
+        top = min(top, p.rect.bottom)
+    return y0 - top
+
+
+def test_single_press_jumps_half_height():
+    full = _jump_height({0, 8})
+    single = _jump_height({0})
+    assert single == pytest.approx(full / 2, abs=4)
+    assert single < 3 * S.TILE                   # no llega a la plataforma de 3 filas
+
+
+@pytest.mark.parametrize("second", [3, 8, 14, 18, 24])
+def test_double_press_reaches_current_full_height_whenever_pressed(second):
+    h = _jump_height({0, second})
+    assert h == pytest.approx(S.JUMP_FULL_H, abs=6)   # misma altura que el salto de antes
+    assert h > 3 * S.TILE                             # llega a la plataforma de 3 filas
+
+
+def test_no_triple_jump_and_no_double_without_first():
+    assert _jump_height({0, 8, 16, 24}) == _jump_height({0, 8})
+    # Cayendo de una plataforma (sin haber saltado) la pulsación no da impulso extra
+    w, p, top = _standing_on_platform(10, 4)
+    step(w, 1, {"down"})
+    step(w, 8)
+    vy = p.vy
+    step(w, 1, {"jump"})
+    assert p.vy >= vy                            # sigue cayendo
+
+
+def test_jumps_reset_after_landing():
+    w = World(1, seed=1)
+    for e in w.enemies:
+        e.alive = False
+    p = w.player
+    step(w, 10)
+    double_jump(w)
+    for _ in range(120):
+        step(w, 1)
+        if p.on_ground:
+            break
+    assert p.jumps == 0
+    double_jump(w)
+    assert p.jumps == 2
+
+
+def test_can_shoot_while_in_the_air():
+    w = World(1, seed=1)
+    for e in w.enemies:
+        e.alive = False
+    step(w, 10)
+    step(w, 1, {"jump"})
+    step(w, 4)
+    assert not w.player.on_ground
+    step(w, 1, {"bubble"})
+    assert w.bubbles

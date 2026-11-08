@@ -151,7 +151,7 @@ class World:
         p.update(dt, pressed, just, self.solids, self.oneway)
         if pressed & {"left", "right"}:
             self._tutorial_event("move")
-        if "jump" in just:
+        if p.jumps == 2:                  # el paso del salto pide el salto doble
             self._tutorial_event("jump")
         if p.just_dropped:
             self._tutorial_event("drop")
