@@ -285,8 +285,31 @@ class World:
                 p.landed_dead = True
             return
         self.death_t += dt
-        if self.death_t >= S.DEATH_TIME:
+        if self.death_t >= self.death_duration:
             self.finish_dying()
+
+    @property
+    def final_death(self) -> bool:
+        """Muerte sin vidas: termina con la tumba y el fin de la partida."""
+        return self.player.dead and self.lives <= 0
+
+    @property
+    def death_duration(self) -> float:
+        """Tiempo desde que cae al suelo hasta reaparecer o terminar la partida."""
+        if not self.final_death:
+            return S.DEATH_TIME
+        return S.DEATH_TIP_TIME + S.GRAVE_LIE + S.GRAVE_SINK + S.GRAVE_RISE + S.GRAVE_HOLD
+
+    @property
+    def grave_progress(self) -> tuple[float, float]:
+        """(hundimiento, lápida), cada uno de 0 a 1, en la muerte final."""
+        if not (self.final_death and self.player.landed_dead):
+            return 0.0, 0.0
+        start = S.DEATH_TIP_TIME + S.GRAVE_LIE
+        sink = min(1.0, max(0.0, (self.death_t - start) / S.GRAVE_SINK))
+        rise_start = start + S.GRAVE_SINK * S.GRAVE_RISE_START
+        rise = min(1.0, max(0.0, (self.death_t - rise_start) / S.GRAVE_RISE))
+        return sink, rise
 
     def finish_dying(self):
         """Termina la animación: reaparece si quedan vidas; si no, fin de la partida."""

@@ -340,8 +340,9 @@ class GameScene(Scene):
         if w.celebrating:
             self._draw_player_celebrating(field, w.player, w.celebrate_t)
         elif w.player.dead:
+            sink, rise = w.grave_progress
             self._draw_player_dead(field, w.player, w.death_t if w.player.landed_dead else 0.0,
-                                   w.player.landed_dead)
+                                   w.player.landed_dead, sink, rise)
         else:
             self._draw_player(field, w.player)
 
@@ -441,28 +442,74 @@ class GameScene(Scene):
         pygame.draw.line(surf, S.BLACK, (x - d, y - d), (x + d, y + d), 2)
         pygame.draw.line(surf, S.BLACK, (x - d, y + d), (x + d, y - d), 2)
 
-    def _draw_player_dead(self, surf, p, t, landed):
-        """Ojo en X; al hacer pie se vuelca de espaldas y se queda tumbado en el suelo."""
+    def _draw_player_dead(self, surf, p, t, landed, sink=0.0, rise=0.0):
+        """Ojo en X; al hacer pie se vuelca de espaldas y se queda tumbado en el suelo.
+        En la muerte final, además, se hunde en el terreno y aparece una tumba con lápida."""
         r = p.rect
         k = min(1.0, t / S.DEATH_TIP_TIME) if landed else 0.0
-        if k >= 1.0:
-            # Tumbado: más largo que alto, con la cabeza (y el ojo en X) en un extremo.
-            # Cae de espaldas, así que la cabeza queda en el lado contrario al que miraba.
+        if k < 1.0:
+            img = pygame.Surface(r.size, pygame.SRCALPHA)
+            pygame.draw.rect(img, S.PLAYER, img.get_rect(), border_radius=10)
+            self._draw_x_eye(img, (r.width // 2 + p.facing * 5, 12), 4)
+            if k > 0:
+                img = pygame.transform.rotate(img, 90 * p.facing * k)  # volcándose
+            surf.blit(img, img.get_rect(midbottom=r.midbottom))
+            return
+
+        ground = r.bottom                 # superficie sobre la que está (suelo o plataforma)
+        head = -p.facing                  # cae de espaldas: la cabeza, al lado contrario
+        cx = r.centerx
+        if rise > 0:
+            self._draw_tombstone(surf, cx + head * 13, ground, rise)
+
+        # Todo lo que baje de la superficie queda "dentro de la tierra" y no se ve
+        old_clip = surf.get_clip()
+        surf.set_clip(pygame.Rect(0, 0, surf.get_width(), ground).clip(old_clip))
+        if sink < 1.0:
             body = pygame.Rect(0, 0, 38, 20)
-            body.midbottom = r.midbottom
+            body.midbottom = (cx, ground + round(sink * (body.height + 2)))
             pygame.draw.rect(surf, S.PLAYER, body, border_radius=9)
-            head = -p.facing
-            eye = (body.centerx + head * 11, body.y + 8)
-            self._draw_x_eye(surf, eye, 4)
+            self._draw_x_eye(surf, (body.centerx + head * 11, body.y + 8), 4)
             foot = body.centerx - head * 15                       # pies asomando al otro lado
             pygame.draw.circle(surf, S.PLAYER_DARK, (foot, body.y + 3), 3)
-            return
-        img = pygame.Surface(r.size, pygame.SRCALPHA)
-        pygame.draw.rect(img, S.PLAYER, img.get_rect(), border_radius=10)
-        self._draw_x_eye(img, (r.width // 2 + p.facing * 5, 12), 4)
-        if k > 0:
-            img = pygame.transform.rotate(img, 90 * p.facing * k)  # volcándose
-        surf.blit(img, img.get_rect(midbottom=r.midbottom))
+        if sink > 0:
+            # Montículo de tierra que crece mientras se hunde
+            mound = pygame.Rect(0, 0, 46, round(4 + 14 * sink))
+            mound.center = (cx - head * 2, ground)
+            pygame.draw.ellipse(surf, S.DIRT, mound)
+            pygame.draw.ellipse(surf, S.DIRT_DARK, mound, 1)
+            if sink < 1.0:
+                self._draw_dirt(surf, cx, ground, sink)
+        surf.set_clip(old_clip)
+
+    @staticmethod
+    def _draw_dirt(surf, cx, ground, k):
+        """Terrones que saltan mientras el cuerpo se hunde."""
+        for i, (vx, vy) in enumerate(((-55, 70), (-25, 95), (10, 85), (35, 100), (60, 65))):
+            tt = (k * 0.9 + i * 0.07) % 0.6     # cada terrón salta en su momento
+            x = cx + vx * tt
+            y = ground - (vy * tt - 260 * tt * tt)
+            if y <= ground:
+                pygame.draw.circle(surf, S.DIRT if i % 2 else S.DIRT_DARK, (x, y), 2)
+
+    @staticmethod
+    def _draw_tombstone(surf, x, ground, k):
+        """Lápida de piedra con una cruz, saliendo del suelo (k de 0 a 1)."""
+        w, h = 22, 30
+        old_clip = surf.get_clip()
+        surf.set_clip(pygame.Rect(0, 0, surf.get_width(), ground).clip(old_clip))
+        stone = pygame.Rect(0, 0, w, h)
+        stone.midbottom = (x, ground + round((1 - k) * h) + 2)  # +2: algo enterrada
+        radius = w // 2
+        pygame.draw.rect(surf, S.STONE, stone, border_top_left_radius=radius,
+                         border_top_right_radius=radius)
+        pygame.draw.rect(surf, S.STONE_DARK, stone, width=2, border_top_left_radius=radius,
+                         border_top_right_radius=radius)
+        cross_x, cross_y = stone.centerx, stone.y + 8
+        pygame.draw.line(surf, S.STONE_DARK, (cross_x, cross_y), (cross_x, cross_y + 13), 3)
+        pygame.draw.line(surf, S.STONE_DARK, (cross_x - 5, cross_y + 4),
+                         (cross_x + 5, cross_y + 4), 3)
+        surf.set_clip(old_clip)
 
     def _draw_ghost(self, surf, g):
         """Enemigo eliminado: ojos en cruz, alas que aletean y 60 % de opacidad."""

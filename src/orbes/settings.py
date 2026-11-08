@@ -72,7 +72,13 @@ GHOST_RISE_START = 40.0        # sube despacio al principio...
 GHOST_RISE_ACCEL = 160.0
 GHOST_RISE_MAX = 260.0         # ...y acelera hasta esta velocidad (px/s)
 DEATH_TIP_TIME = 0.2           # el jugador tarda esto en caer tumbado al hacer pie
-DEATH_TIME = 1.6               # tiempo tumbado antes de reaparecer o de fin de partida
+DEATH_TIME = 1.6               # tiempo tumbado antes de reaparecer (si quedan vidas)
+# Muerte final (sin vidas): tumbado -> se hunde en el suelo -> sale una lápida -> fin de partida
+GRAVE_LIE = 0.6                # tumbado antes de empezar a hundirse
+GRAVE_SINK = 0.9               # lo que tarda en hundirse del todo
+GRAVE_RISE = 0.5               # lo que tarda la lápida en salir del suelo
+GRAVE_RISE_START = 0.6         # la lápida empieza a salir a este punto del hundimiento (0..1)
+GRAVE_HOLD = 1.2               # tumba a la vista antes de la ventana de fin de partida
 
 # --- Estrella de fin de nivel ---
 STAR_SIZE = 30
@@ -100,6 +106,10 @@ PLAYER_DARK = (40, 150, 90)
 PLAYER_TONGUE = (225, 40, 55)
 WING = (235, 240, 255)
 WING_EDGE = (150, 180, 230)
+DIRT = (115, 82, 52)
+DIRT_DARK = (80, 56, 36)
+STONE = (150, 152, 168)
+STONE_DARK = (95, 97, 112)
 ENEMY = (235, 90, 90)
 ENEMY_BLUE = (80, 130, 240)
 TONGUE = (255, 120, 170)

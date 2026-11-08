@@ -512,3 +512,45 @@ def test_closing_during_death_saves_respawned_or_nothing():
 
     w.lives = 0
     assert savegame.snapshot(w) is None
+
+
+# --- muerte final: tumba ---
+
+def _kill(w):
+    w.player.invuln = 0
+    w.enemies[0].place(*w.player.rect.topleft)
+    step(w, 1)
+    assert w.state == "dying"
+
+
+def test_final_death_sinks_then_grave_then_game_over():
+    w = World(1, lives=1, seed=1)
+    _kill(w)
+    assert w.final_death
+    while not w.player.landed_dead:
+        step(w, 1)
+    assert w.grave_progress == (0.0, 0.0)              # primero, tumbado como siempre
+    step(w, int((S.DEATH_TIP_TIME + S.GRAVE_LIE) * 60) + 3)
+    sink, rise = w.grave_progress
+    assert 0 < sink < 1 and rise == 0                  # se está hundiendo
+    step(w, int(S.GRAVE_SINK * 60))
+    sink, rise = w.grave_progress
+    assert sink == 1 and 0 < rise                      # hundido; sale la lápida
+    step(w, int(S.GRAVE_RISE * 60))
+    assert w.grave_progress == (1.0, 1.0) and w.state == "dying"
+    step(w, int(S.GRAVE_HOLD * 60) + 2)
+    assert w.state == "lost"                           # tumba a la vista y fin de partida
+    assert w.grave_progress == (1.0, 1.0)
+
+
+def test_non_final_death_has_no_grave():
+    w = World(1, lives=2, seed=1)
+    _kill(w)
+    assert not w.final_death
+    assert w.death_duration == S.DEATH_TIME
+    for _ in range(int(S.DEATH_TIME * 60) + 120):
+        assert w.grave_progress == (0.0, 0.0)
+        step(w, 1)
+        if w.state == "playing":
+            break
+    assert w.state == "playing" and w.lives == 1
