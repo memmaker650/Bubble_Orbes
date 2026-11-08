@@ -51,7 +51,7 @@ def test_menu_play_opens_play_screen_with_three_options(tmp_path):
     menu._activate("play")
     play = app.scene
     assert isinstance(play, PlayScene)
-    assert [n for n, _ in play.buttons] == ["start", "difficulty", "tutorial", "back"]
+    assert [n for n, _ in play.buttons][:4] == ["start", "difficulty", "tutorial", "back"]
     play._activate("back")
     assert isinstance(app.scene, MenuScene)
     app.db.close()
@@ -170,9 +170,10 @@ def test_hud_hearts_match_difficulty(tmp_path):
             game.world.lives -= 1                      # una vida gastada
             calls.clear()
             game.draw(app.display.surface)
-            total = S.DIFFICULTIES[difficulty]["lives"]
+            start = S.DIFFICULTIES[difficulty]["lives"]
+            total = S.DIFFICULTIES[difficulty]["max_lives"]   # se ven todos los posibles
             assert len(calls) == total
-            assert calls == [True] * (total - 1) + [False]   # la última, vacía
+            assert calls == [True] * (start - 1) + [False] * (total - start + 1)
         app.db.close()
     finally:
         ui.draw_heart = real
@@ -280,3 +281,76 @@ def test_medkits_draw(tmp_path):
         game.update(1 / 60)
         game.draw(app.display.surface)
     app.db.close()
+
+
+def test_level_complete_window_shows_heart_and_next_level_keeps_it(tmp_path):
+    from orbes.scenes import GameScene
+    from orbes import translations
+    translations.set_language("es")
+    app = App(db_path=tmp_path / "t.db")
+    game = GameScene(app, level_index=1, lives=2)
+    w = game.world
+    for e in w.enemies:
+        e.alive = False
+    w.player.place(*w.star.rect.topleft)
+    for _ in range(60 * 6):
+        game.update(1 / 60)
+        if game._overlay_visible():
+            break
+    game.draw(app.display.surface)
+    assert w.hearts_gained == 1
+    game._advance()
+    assert app.scene.world.number == 2 and app.scene.world.lives == 3
+    app.db.close()
+
+
+
+def test_level_selector_picks_starting_level(tmp_path):
+    import pygame
+    from orbes.scenes import PlayScene
+    app = App(db_path=tmp_path / "t.db")
+    play = PlayScene(app)
+    names = [n for n, _ in play.buttons]
+    assert {"level_prev", "level", "level_next"} <= set(names)
+    assert play.selected == 1 and dict(play.buttons)["level"].label == "Nivel 1"
+    play._activate("level_next")
+    play._activate("level_next")
+    assert play.selected == 3 and dict(play.buttons)["level"].label == "Nivel 3"
+    play._activate("level_prev")
+    assert play.selected == 2
+    play.handle_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RIGHT))
+    assert play.selected == 3
+    app.db.set_setting("difficulty", "hard")
+    play._activate("start")
+    w = app.scene.world
+    assert w.number == 3 and w.difficulty == "hard"
+    app.db.close()
+
+
+def test_level_selector_wraps_and_resets(tmp_path):
+    from orbes.levels import LEVELS
+    from orbes.scenes import PlayScene
+    app = App(db_path=tmp_path / "t.db")
+    play = PlayScene(app)
+    play._activate("level_prev")                    # del 1 salta al último
+    assert play.selected == LEVELS[-1].number == 20
+    play._activate("level_next")
+    assert play.selected == 1
+    play._activate("level_next")
+    assert PlayScene(app).selected == 1             # al volver a la pantalla, otra vez el 1
+    app.db.close()
+
+
+def test_level_selector_can_be_hidden(tmp_path):
+    from orbes import settings as S
+    from orbes.scenes import PlayScene
+    app = App(db_path=tmp_path / "t.db")
+    S.LEVEL_SELECT = False
+    try:
+        play = PlayScene(app)
+        assert "level" not in dict(play.buttons)
+        play._activate("start")
+        assert app.scene.world.number == 1
+    finally:
+        S.LEVEL_SELECT = True
+        app.db.close()

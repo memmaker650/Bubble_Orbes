@@ -52,6 +52,8 @@
     <text key="difficulty_short.easy">F</text>
     <text key="difficulty_short.normal">M</text>
     <text key="difficulty_short.hard">D</text>
+    <text key="win.heart">¡+1 corazón!</text>
+    <text key="play.level">Nivel {level}</text>
   </language>
   <language code="en" name="English" flag="uk">
     <text key="menu.subtitle">Trap enemies in bubbles and pop them</text>
@@ -99,6 +101,8 @@
     <text key="difficulty_short.easy">E</text>
     <text key="difficulty_short.normal">M</text>
     <text key="difficulty_short.hard">H</text>
+    <text key="win.heart">+1 heart!</text>
+    <text key="play.level">Level {level}</text>
   </language>
   <language code="fr" name="Français" flag="fr">
     <text key="menu.subtitle">Piégez les ennemis dans des bulles</text>
@@ -146,5 +150,7 @@
     <text key="difficulty_short.easy">F</text>
     <text key="difficulty_short.normal">M</text>
     <text key="difficulty_short.hard">D</text>
+    <text key="win.heart">+1 cœur !</text>
+    <text key="play.level">Niveau {level}</text>
   </language>
 </translations>

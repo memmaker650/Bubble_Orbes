@@ -975,3 +975,64 @@ def test_half_hearts_survive_save():
     w = World(2, lives=1.5, seed=1)
     r = savegame.restore(savegame.snapshot(w))
     assert r.lives == 1.5
+
+
+# --- +1 corazón al superar un nivel ---
+
+def _win_now(w):
+    for e in w.enemies:
+        e.alive = False
+    w.player.place(*w.star.rect.topleft)
+    step(w, 1)
+    assert w.state == "won"
+
+
+def test_completing_a_level_gives_a_heart():
+    w = World(1, lives=1.5, seed=1)
+    _win_now(w)
+    assert w.lives == 2.5 and w.hearts_gained == 1
+
+
+def test_level_heart_capped_at_max_in_normal_and_easy():
+    w = World(1, lives=3, seed=1)
+    _win_now(w)
+    assert w.lives == 3 and w.hearts_gained == 0
+    w = World(1, lives=5, seed=1, difficulty="easy")
+    _win_now(w)
+    assert w.lives == 5
+
+
+def test_hard_starts_with_two_and_can_reach_three():
+    w = World(1, seed=1, difficulty="hard")
+    assert w.lives == 2 and w.max_lives == 3
+    _win_now(w)
+    assert w.lives == 3
+    w2 = World(2, lives=w.lives, seed=1, difficulty="hard")
+    _win_now(w2)
+    assert w2.lives == 3                       # nunca más de 3
+
+
+def test_medkit_can_also_reach_three_in_hard():
+    from orbes.levels import index_of
+    w = World(index_of(5), lives=2, seed=1, difficulty="hard")
+    for e in w.enemies:
+        e.alive = False
+    m = w.medkits[0]
+    w.player.place(m.rect.x, m.rect.y)
+    step(w, 1)
+    assert w.lives == 3
+
+
+def test_tutorial_gives_no_heart():
+    w = World(0, lives=2, seed=1)
+    _win_now(w)
+    assert w.lives == 2 and w.hearts_gained == 0
+
+
+def test_heart_carries_over_to_next_level_and_save(tmp_path):
+    from orbes import savegame
+    w = World(1, lives=2, seed=1)
+    _win_now(w)
+    data = savegame.snapshot(w)                # al cerrar tras ganar: inicio del siguiente
+    assert data["lives"] == 3
+    assert savegame.restore(data).lives == 3

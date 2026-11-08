@@ -90,17 +90,20 @@ SHOOT_COOLDOWN = 0.3
 #   preempt      -> ataques preventivos: atacan donde vas a estar (difícil)
 #   cooldown     -> multiplica la recarga de la lengua y del láser
 #   lives, bubble_life -> vidas iniciales y segundos que dura un enemigo atrapado
+#   max_lives    -> máximo de corazones (superando niveles o con botiquines)
 DIFFICULTIES = {
-    "easy":   {"lives": 5, "enemy_speed": 0.7, "attack_delay": 0.3, "preempt": False,
-               "cooldown": 1.25, "bubble_life": 9.0},
-    "normal": {"lives": 3, "enemy_speed": 1.0, "attack_delay": 0.0, "preempt": False,
-               "cooldown": 1.0, "bubble_life": 7.0},
-    "hard":   {"lives": 2, "enemy_speed": 1.3, "attack_delay": 0.0, "preempt": True,
-               "cooldown": 0.75, "bubble_life": 5.0},
+    "easy":   {"lives": 5, "max_lives": 5, "enemy_speed": 0.7, "attack_delay": 0.3,
+               "preempt": False, "cooldown": 1.25, "bubble_life": 9.0},
+    "normal": {"lives": 3, "max_lives": 3, "enemy_speed": 1.0, "attack_delay": 0.0,
+               "preempt": False, "cooldown": 1.0, "bubble_life": 7.0},
+    "hard":   {"lives": 2, "max_lives": 3, "enemy_speed": 1.3, "attack_delay": 0.0,
+               "preempt": True, "cooldown": 0.75, "bubble_life": 5.0},
 }
+LEVEL_HEAL = 1.0               # corazones que se ganan al superar un nivel
 PREEMPT_LOOKAHEAD = 0.4        # difícil: los enemigos anticipan dónde estarás en estos segundos
 DIFFICULTY_ORDER = ("easy", "normal", "hard")
 DEFAULT_DIFFICULTY = "normal"
+LEVEL_SELECT = True            # selector de nivel en "Nueva partida" (para probar niveles)
 
 # --- Animaciones de muerte ---
 GHOST_ALPHA = 153              # enemigo eliminado: 60 % de opacidad (153 de 255)

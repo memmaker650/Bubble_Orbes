@@ -45,6 +45,7 @@ class World:
         self.tutorial_done: set = set()   # pasos del tutorial ya hechos
         # Celebración de fin de nivel: el jugador termina su salto, hace pie y saluda
         self.landed = False
+        self.hearts_gained = 0.0     # corazones ganados al superar el nivel
         self.win_t = 0.0             # tiempo desde que se tocó la estrella
         self.celebrate_t = 0.0       # tiempo celebrando ya en el suelo
         self.load_level()
@@ -221,6 +222,12 @@ class World:
     def _win(self):
         self.state = "won"
         self.score += S.POINTS_LEVEL
+        # Superar un nivel da un corazón (sin pasar del máximo). En el tutorial no: al
+        # terminarlo, el nivel 1 empieza con la vida inicial.
+        before = self.lives
+        if not self.tutorial:
+            self.lives = min(self.max_lives, self.lives + S.LEVEL_HEAL)
+        self.hearts_gained = self.lives - before
         self.message_timer = 0.0
         self.player.invuln = 0.0     # sin parpadeo durante la celebración
         self.landed = False
@@ -310,7 +317,8 @@ class World:
 
     @property
     def max_lives(self) -> float:
-        return self.rules["lives"]
+        """Máximo de corazones de la dificultad (en difícil, más que los iniciales)."""
+        return self.rules.get("max_lives", self.rules["lives"])
 
     def _check_medkits(self):
         """Coger un botiquín recupera un corazón (sin pasar del máximo). Con la vida al

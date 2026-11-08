@@ -138,19 +138,28 @@ def get_difficulty(db) -> str:
 
 
 class PlayScene(Scene):
-    """Pantalla previa a la partida: Empezar, Dificultad (Fácil/Medio/Difícil) y Tutorial."""
+    """Pantalla previa a la partida: Empezar, Dificultad (Fácil/Medio/Difícil), Tutorial y,
+    para probar niveles, un selector de nivel (S.LEVEL_SELECT)."""
 
     def __init__(self, app):
         super().__init__(app)
         self.title_font = pygame.font.Font(None, 56)
         self.font = pygame.font.Font(None, 38)
         self.small = pygame.font.Font(None, 24)
+        # Niveles que se pueden elegir (sin el tutorial, que tiene su botón)
+        self.choices = [lv.number for lv in levels.LEVELS if not lv.tutorial]
+        self.selected = 1 if 1 in self.choices else self.choices[0]   # siempre empieza en 1
         self._build_buttons()
 
     def _next_level_index(self) -> int:
-        """Una partida nueva siempre empieza en el nivel 1 (para seguir donde se dejó está
-        "Continuar", en el menú principal)."""
-        return levels.index_of(1)
+        """Nivel con el que empieza la partida nueva: el 1, salvo que se elija otro en el
+        selector (para seguir donde se dejó está "Continuar", en el menú principal)."""
+        return levels.index_of(self.selected)
+
+    def _change_level(self, delta):
+        i = (self.choices.index(self.selected) + delta) % len(self.choices)
+        self.selected = self.choices[i]
+        self._build_buttons()
 
     def _build_buttons(self):
         difficulty = get_difficulty(self.app.db)
@@ -161,6 +170,13 @@ class PlayScene(Scene):
             ("tutorial", Button((_BTN_X, 410, 260, 60), t("menu.tutorial"))),
             ("back", Button(((S.LOGICAL_W - 140) // 2, S.LOGICAL_H - 110, 140, 46), t("common.back"))),
         ]
+        if S.LEVEL_SELECT:
+            y = 490
+            self.buttons += [
+                ("level_prev", Button((_BTN_X, y, 52, 60), "")),
+                ("level", Button((_BTN_X + 60, y, 140, 60), t("play.level", level=self.selected))),
+                ("level_next", Button((_BTN_X + 208, y, 52, 60), "")),
+            ]
 
     def _cycle_difficulty(self):
         order = S.DIFFICULTY_ORDER
@@ -183,6 +199,10 @@ class PlayScene(Scene):
             self._cycle_difficulty()
         elif name == "tutorial":
             self._start(0)
+        elif name in ("level_prev", "level_next"):
+            self._change_level(-1 if name == "level_prev" else 1)
+        elif name == "level":
+            self._change_level(1)
         elif name == "back":
             self.app.change_scene(MenuScene(self.app))
 
@@ -198,12 +218,19 @@ class PlayScene(Scene):
                 self._activate("start")
             elif event.key == pygame.K_ESCAPE:
                 self._activate("back")
+            elif S.LEVEL_SELECT and event.key in (pygame.K_LEFT, pygame.K_RIGHT):
+                self._change_level(-1 if event.key == pygame.K_LEFT else 1)
 
     def draw(self, surf):
         surf.fill(S.BG)
         draw_text(surf, self.title_font, t("play.title"), S.BUBBLE, center=(S.LOGICAL_W // 2, 150))
         for name, button in self.buttons:
             button.draw(surf, self.small if name == "back" else self.font)
+            if name in ("level_prev", "level_next"):      # flechas del selector de nivel
+                cx, cy = button.rect.center
+                d = -1 if name == "level_prev" else 1
+                pygame.draw.polygon(surf, S.WHITE, [(cx - d * 7, cy - 11), (cx + d * 9, cy),
+                                                    (cx - d * 7, cy + 11)])
         # Indicador de dificultad: 1, 2 o 3 estrellas bajo el botón
         stars = S.DIFFICULTY_ORDER.index(get_difficulty(self.app.db)) + 1
         box = dict(self.buttons)["difficulty"].rect
@@ -376,7 +403,7 @@ class GameScene(Scene):
         level = t("hud.tutorial") if w.tutorial else t("hud.level", level=w.number)
         draw_text(surf, self.hud, level, S.WHITE, center=(S.LOGICAL_W // 2, hud_y))
         # Vidas: un corazón por cada vida de la dificultad; vacíos los ya gastados
-        draw_hearts(surf, w.lives, w.rules["lives"], S.LOGICAL_W - S.BORDER, hud_y)
+        draw_hearts(surf, w.lives, w.max_lives, S.LOGICAL_W - S.BORDER, hud_y)
 
         for g in w.ghosts:  # suben por encima del marcador hasta salir de la pantalla
             self._draw_ghost(surf, g)
@@ -763,6 +790,8 @@ class GameScene(Scene):
                 rows = [(self.title, t("win.title", level=w.number), S.STAR_BLUE)]
                 if w.is_last_level:
                     rows.append((self.font, t("win.game"), S.STAR_YELLOW))
+                if w.hearts_gained > 0:
+                    rows.append((self.font, t("win.heart"), S.HEART))
             rows += [
                 (self.font, t("win.time", time=f"{minutes:02d}:{seconds:02d}"), S.WHITE),
                 (self.font, t("win.points", points=w.level_points), S.WHITE),
