@@ -713,15 +713,19 @@ class GameScene(Scene):
         rect = e.attack_rect()
         if rect is None:
             return
-        halo = rect.inflate(0, 8)
+        strong = e.super_attack     # súper láser: más grueso y con más brillo
+        halo = rect.inflate(0, 14 if strong else 8)
         layer = pygame.Surface(halo.size, pygame.SRCALPHA)
         flicker = int(40 * abs(math.sin(self.t * 30)))
-        pygame.draw.rect(layer, (*S.LASER, 70 + flicker), layer.get_rect(), border_radius=6)
+        alpha = (110 if strong else 70) + flicker
+        pygame.draw.rect(layer, (*S.LASER, alpha), layer.get_rect(), border_radius=6)
         surf.blit(layer, halo.topleft)
         ey = rect.centery
         for dy in (-3, 3):  # un rayo por cada ojo
-            pygame.draw.line(surf, S.LASER, (rect.left, ey + dy), (rect.right, ey + dy), 3)
-        pygame.draw.line(surf, (255, 200, 200), (rect.left, ey), (rect.right, ey), 1)
+            pygame.draw.line(surf, S.LASER, (rect.left, ey + dy), (rect.right, ey + dy),
+                             5 if strong else 3)
+        pygame.draw.line(surf, (255, 200, 200), (rect.left, ey), (rect.right, ey),
+                         3 if strong else 1)
 
     def _draw_bubble(self, surf, b):
         if b.captured is not None:

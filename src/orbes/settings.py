@@ -48,7 +48,8 @@ ENEMY_SPEED_STEP = 12.0        # +velocidad por nivel
 ENEMY_ANGRY_FACTOR = 1.6
 
 # Enemigo rojo: lengua
-TONGUE_RANGE = 110             # longitud máxima de la lengua
+TONGUE_RANGE = 110             # longitud de la lengua en el súper ataque (alcance máximo)
+TONGUE_REACH_NORMAL = 55       # ataque normal: la mitad
 TONGUE_OUT = 0.18              # segundos en sacarla
 TONGUE_HOLD = 0.15             # segundos estirada
 TONGUE_IN = 0.2                # segundos en recogerla
@@ -65,6 +66,11 @@ MOUTH_INSIDE = (95, 20, 35)
 LASER_WINDUP = 0.35            # aviso (ojos brillando) antes de disparar; 0 = sin aviso
 LASER_DURATION = 1.0           # el rayo dura 1 s
 LASER_RECHARGE = 4.0           # y necesita 4 s para recargar
+LASER_REACH_NORMAL = 180       # ataque normal: hasta la mitad del ancho; súper: hasta el muro
+
+# Ataque normal: si el jugador está cerca (dentro del alcance normal); recarga normal.
+# Súper ataque: si está más lejos (hasta el alcance máximo); recarga este número de veces más.
+SUPER_COOLDOWN_FACTOR = 2.0
 
 # --- Burbujas ---
 BUBBLE_SIZE = 28

@@ -206,14 +206,14 @@ def test_tongue_does_not_attack_behind_or_far():
 
 
 def test_laser_lasts_one_second_then_recharges_four():
-    w, e, p = _duel(LaserEnemy, gap=200)
+    w, e, p = _duel(LaserEnemy, gap=120)
     p.invuln = 99            # observamos el ciclo sin perder vidas
     step(w, 1)
     assert e.attack == "windup"
     step(w, int(S.LASER_WINDUP * 60) + 1)
     assert e.attack == "fire"
     beam = e.attack_rect()
-    assert beam.colliderect(p.rect) and beam.left == S.BORDER   # llega hasta el borde
+    assert beam.colliderect(p.rect) and beam.width <= S.LASER_REACH_NORMAL  # normal: mitad
     step(w, 50)              # ~0.85 s disparando: sigue activo
     assert e.attack == "fire"
     step(w, 12)              # pasado 1 s: se apaga
@@ -222,7 +222,7 @@ def test_laser_lasts_one_second_then_recharges_four():
     step(w, int(3.8 * 60))
     # Mientras recarga sigue andando: lo devolvemos frente al jugador para comprobar
     # que, aun viéndolo, no dispara hasta completar los 4 s.
-    e.place(p.rect.right + 200, FLOOR_Y)
+    e.place(p.rect.right + 120, FLOOR_Y)
     e.direction = -1
     step(w, 1)
     assert e.attack is None and e.cooldown > 0
@@ -231,7 +231,7 @@ def test_laser_lasts_one_second_then_recharges_four():
 
 
 def test_laser_hits_player_across_room():
-    w, e, p = _duel(LaserEnemy, gap=200)
+    w, e, p = _duel(LaserEnemy, gap=200)      # lejos: súper láser, hasta el muro
     lives = w.lives
     step(w, int((S.LASER_WINDUP + 0.1) * 60))
     assert w.lives == lives - 1
@@ -257,7 +257,7 @@ def test_difficulty_rules_are_applied(name):
 
 
 def test_normal_difficulty_keeps_laser_one_second_four_recharge():
-    w, e, p = _duel(LaserEnemy, gap=200)
+    w, e, p = _duel(LaserEnemy, gap=120)      # cerca: ataque normal
     assert w.difficulty == "normal"
     p.invuln = 99
     step(w, int((S.LASER_WINDUP + S.LASER_DURATION) * 60) + 5)
@@ -647,7 +647,7 @@ def test_hard_preemptive_laser_on_player_dropping_into_line():
 
 def test_laser_pupils_black_while_recharging_red_when_charged():
     from orbes.scenes import GameScene
-    w, e, p = _duel(LaserEnemy, gap=200)
+    w, e, p = _duel(LaserEnemy, gap=120)
     p.invuln = 99
     assert e.charged and GameScene.laser_pupil_color(e) == S.LASER
     step(w, int((S.LASER_WINDUP + S.LASER_DURATION) * 60) + 3)   # dispara y empieza a recargar
@@ -659,7 +659,7 @@ def test_laser_pupils_black_while_recharging_red_when_charged():
 
 
 def test_tongue_enemy_is_tired_and_slower_while_recharging():
-    w, e, p = _duel(TongueEnemy, gap=80)
+    w, e, p = _duel(TongueEnemy, gap=40)
     p.invuln = 99
     assert not e.tired
     step(w, int((S.TONGUE_OUT + S.TONGUE_HOLD + S.TONGUE_IN) * 60) + 3)
@@ -843,3 +843,73 @@ def test_can_shoot_while_in_the_air():
     assert not w.player.on_ground
     step(w, 1, {"bubble"})
     assert w.bubbles
+
+
+
+# --- ataque normal (mitad de alcance) y súper ataque (alcance de antes, doble recarga) ---
+
+def _attack_and_finish(w, e, p):
+    p.invuln = 99
+    for _ in range(300):
+        step(w, 1)
+        if e.attack is not None:
+            break
+    kind = "super" if e.super_attack else "normal"
+    longest = 0
+    while e.attack is not None:
+        r = e.attack_rect()
+        if r is not None:
+            longest = max(longest, r.width)
+        step(w, 1)
+    return kind, longest, e.cooldown
+
+
+def test_tongue_normal_attack_reaches_half_and_same_recharge():
+    w, e, p = _duel(TongueEnemy, gap=40)
+    kind, longest, cooldown = _attack_and_finish(w, e, p)
+    assert kind == "normal"
+    assert longest <= S.TONGUE_REACH_NORMAL == S.TONGUE_RANGE / 2
+    assert cooldown == pytest.approx(S.TONGUE_COOLDOWN, abs=0.05)
+
+
+def test_tongue_super_attack_reaches_full_range_with_double_recharge():
+    w, e, p = _duel(TongueEnemy, gap=80)
+    kind, longest, cooldown = _attack_and_finish(w, e, p)
+    assert kind == "super"
+    assert longest > S.TONGUE_REACH_NORMAL and longest <= S.TONGUE_RANGE
+    assert cooldown == pytest.approx(S.TONGUE_COOLDOWN * 2, abs=0.05)
+
+
+def test_laser_normal_reaches_half_and_same_recharge():
+    w, e, p = _duel(LaserEnemy, gap=120)
+    kind, longest, cooldown = _attack_and_finish(w, e, p)
+    assert kind == "normal"
+    assert longest <= S.LASER_REACH_NORMAL
+    assert cooldown == pytest.approx(S.LASER_RECHARGE, abs=0.05)
+
+
+def test_laser_super_reaches_wall_with_double_recharge():
+    w, e, p = _duel(LaserEnemy, gap=220)
+    kind, longest, cooldown = _attack_and_finish(w, e, p)
+    assert kind == "super"
+    assert longest > S.LASER_REACH_NORMAL
+    assert cooldown == pytest.approx(S.LASER_RECHARGE * 2, abs=0.05)
+
+
+def test_player_just_beyond_normal_reach_is_safe_from_normal_tongue():
+    """Si el enemigo usara siempre el ataque normal, a 70 px la lengua no llegaría."""
+    w, e, p = _duel(TongueEnemy, gap=70)
+    e.attack, e.attack_t, e.super_attack = "tongue", S.TONGUE_OUT, False
+    e._measure_reach(w.solids)
+    assert not e.attack_rect().colliderect(p.rect)
+    e.super_attack = True
+    assert e.attack_rect().colliderect(p.rect)
+
+
+def test_super_attack_survives_save():
+    from orbes import savegame
+    w = World(1, seed=1)
+    e = next(x for x in w.enemies if isinstance(x, LaserEnemy))
+    e.attack, e.super_attack = "fire", True
+    r = savegame.restore(savegame.snapshot(w))
+    assert r.enemies[w.enemies.index(e)].super_attack

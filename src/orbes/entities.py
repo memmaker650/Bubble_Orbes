@@ -175,7 +175,8 @@ class Enemy(Body):
     """
 
     kind = "base"
-    SIGHT = 0             # alcance de visión en píxeles
+    SIGHT = 0             # alcance de visión en píxeles (= alcance del súper ataque)
+    NORMAL_REACH = 0      # hasta esta distancia usa el ataque normal; más lejos, el súper
     EYE_Y = 12            # altura de los ojos dentro del cuerpo
 
     def __init__(self, x, y, speed, rng):
@@ -195,6 +196,7 @@ class Enemy(Body):
         self.attack_delay = 0.0      # fácil: tiene que verte un rato antes de atacar
         self.sight_t = 0.0           # tiempo seguido viendo al jugador
         self.tired = False           # cansado tras atacar (enemigo de la lengua)
+        self.super_attack = False    # el ataque en curso es el súper (más alcance, más recarga)
 
     @property
     def attacking(self) -> bool:
@@ -204,6 +206,7 @@ class Enemy(Body):
         self.state = "trapped"
         self.vx = self.vy = 0.0
         self.attack = None
+        self.super_attack = False
         self.tired = False
 
     def release(self):
@@ -222,6 +225,12 @@ class Enemy(Body):
         if not (dx * self.direction > 0 and abs(dx) <= self.SIGHT):
             return False
         return not self.blocked_between(target, solids)
+
+    def gap_to(self, target) -> float:
+        """Distancia horizontal entre el frente del enemigo y el lado cercano del objetivo."""
+        if self.direction > 0:
+            return max(0, target.left - self.rect.right)
+        return max(0, self.rect.left - target.right)
 
     def blocked_between(self, target, solids) -> bool:
         """Hay un sólido entre los ojos y el objetivo (a la altura de los ojos)."""
@@ -243,14 +252,20 @@ class Enemy(Body):
         self.cooldown = max(0.0, self.cooldown - dt)
         if self.cooldown <= 0:
             self.tired = False       # ya se ha recuperado
-        seen = target is not None and (
-            self.sees(target, solids)
-            or (predicted is not None and self.sees(predicted, solids)))
+        seen_rect = None
+        if target is not None:
+            if self.sees(target, solids):
+                seen_rect = target
+            elif predicted is not None and self.sees(predicted, solids):
+                seen_rect = predicted
+        seen = seen_rect is not None
         if self.attack is None and self.cooldown <= 0 and self.coyote > 0 and seen:
             self.sight_t += dt
             if self.sight_t >= self.attack_delay - 1e-9:
                 self.sight_t = 0.0
                 self.attack_t = 0.0
+                # Cerca: ataque normal (mitad de alcance). Lejos: súper ataque.
+                self.super_attack = self.gap_to(seen_rect) > self.NORMAL_REACH
                 self._start_attack(solids)
         elif not seen:
             self.sight_t = 0.0
@@ -283,7 +298,11 @@ class Enemy(Body):
         return None
 
     def _end_attack(self, cooldown):
+        """Termina el ataque. El súper ataque gasta más: recarga SUPER_COOLDOWN_FACTOR veces."""
+        if self.super_attack:
+            cooldown *= S.SUPER_COOLDOWN_FACTOR
         self.attack = None
+        self.super_attack = False
         self.cooldown = cooldown * self.cooldown_factor
 
 
@@ -292,6 +311,7 @@ class TongueEnemy(Enemy):
 
     kind = "tongue"
     SIGHT = S.TONGUE_RANGE + 14
+    NORMAL_REACH = S.TONGUE_REACH_NORMAL
     MOUTH_Y = 22
 
     def __init__(self, x, y, speed, rng):
@@ -333,7 +353,8 @@ class TongueEnemy(Enemy):
             k = 1.0
         else:
             k = max(0.0, 1.0 - (t - S.TONGUE_OUT - S.TONGUE_HOLD) / S.TONGUE_IN)
-        return min(S.TONGUE_RANGE * k, self.reach)
+        max_len = S.TONGUE_RANGE if self.super_attack else S.TONGUE_REACH_NORMAL
+        return min(max_len * k, self.reach)
 
     def mouth(self):
         x = self.rect.right if self.direction > 0 else self.rect.left
@@ -353,6 +374,7 @@ class LaserEnemy(Enemy):
 
     kind = "laser"
     SIGHT = S.FIELD_W
+    NORMAL_REACH = S.LASER_REACH_NORMAL
 
     def __init__(self, x, y, speed, rng):
         super().__init__(x, y, speed, rng)
@@ -393,7 +415,10 @@ class LaserEnemy(Enemy):
         if self.attack != "fire":
             return None
         ex, ey = self.eyes()
-        left, right = sorted((ex, self.beam_end))
+        end = self.beam_end
+        if not self.super_attack:  # el normal llega solo hasta la mitad del alcance
+            end = ex + self.direction * min(abs(end - ex), S.LASER_REACH_NORMAL)
+        left, right = sorted((ex, end))
         return Rect(left, ey - 4, right - left, 8)
 
 
