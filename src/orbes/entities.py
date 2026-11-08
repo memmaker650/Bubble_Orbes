@@ -124,28 +124,52 @@ class Player(Body):
         self.shoot_cd = 0.0
         self.invuln = 0.0
         self.just_dropped = False  # este frame ha bajado de una plataforma
+        self.jumps = 0             # 0 en el suelo, 1 tras el salto corto, 2 tras el doble
+        self.knockback = (0.0, 0.0)  # (velocidad x, tiempo restante) del empujón al ser herido
+        self.jump_start = 0        # altura (pies) desde la que despegó
         self.dead = False          # animación de muerte en curso
         self.landed_dead = False   # ya ha caído tumbado al suelo
+
+    def _jump(self):
+        """Primera pulsación (en el suelo): salto corto, la mitad de alto. Segunda pulsación
+        (en el aire, tras ese salto): sigue subiendo hasta la altura del salto completo."""
+        if self.coyote > 0:
+            self.vy = -S.JUMP_V_SHORT
+            self.coyote = 0.0
+            self.jumps = 1
+            self.jump_start = self.rect.bottom
+        elif self.jumps == 1:
+            apex = self.jump_start - S.JUMP_FULL_H          # cima del salto completo
+            remaining = self.rect.bottom - apex
+            if remaining > 1:
+                self.vy = -(2 * S.GRAVITY * remaining) ** 0.5
+            self.jumps = 2
 
     def respawn(self, spawn):
         self.place(spawn[0] + 6, spawn[1] + 8)
         self.vx = self.vy = 0.0
         self.invuln = S.INVULN_TIME
         self.dead = self.landed_dead = False
+        self.knockback = (0.0, 0.0)
 
     def update(self, dt, pressed, just, solids, oneway):
         dirx = ("right" in pressed) - ("left" in pressed)
         self.vx = dirx * S.PLAYER_SPEED
+        kvx, kt = self.knockback
+        if kt > 0:                     # empujado: no se controla el movimiento horizontal
+            self.vx = kvx
+            self.knockback = (kvx, kt - dt)
         if dirx:
             self.facing = dirx
         self.just_dropped = False
         if "down" in just and "jump" not in just:
             # bajar de la plataforma (una por pulsación)
             self.just_dropped = self.drop_through(solids, oneway)
-        elif "jump" in just and self.coyote > 0:
-            self.vy = -S.JUMP_V
-            self.coyote = 0.0
+        elif "jump" in just:
+            self._jump()
         self.physics(dt, solids, oneway)
+        if self.on_ground:
+            self.jumps = 0
         self.shoot_cd = max(0.0, self.shoot_cd - dt)
         self.invuln = max(0.0, self.invuln - dt)
 
@@ -157,7 +181,8 @@ class Enemy(Body):
     """
 
     kind = "base"
-    SIGHT = 0             # alcance de visión en píxeles
+    SIGHT = 0             # alcance de visión en píxeles (= alcance del súper ataque)
+    NORMAL_REACH = 0      # hasta esta distancia usa el ataque normal; más lejos, el súper
     EYE_Y = 12            # altura de los ojos dentro del cuerpo
 
     def __init__(self, x, y, speed, rng):
@@ -177,6 +202,7 @@ class Enemy(Body):
         self.attack_delay = 0.0      # fácil: tiene que verte un rato antes de atacar
         self.sight_t = 0.0           # tiempo seguido viendo al jugador
         self.tired = False           # cansado tras atacar (enemigo de la lengua)
+        self.super_attack = False    # el ataque en curso es el súper (más alcance, más recarga)
 
     @property
     def attacking(self) -> bool:
@@ -186,6 +212,7 @@ class Enemy(Body):
         self.state = "trapped"
         self.vx = self.vy = 0.0
         self.attack = None
+        self.super_attack = False
         self.tired = False
 
     def release(self):
@@ -194,13 +221,34 @@ class Enemy(Body):
         self.angry = True
         self.vy = 0.0
 
-    def sees(self, target) -> bool:
-        """El objetivo está delante, a la altura de los ojos y dentro del alcance."""
+    def sees(self, target, solids=()) -> bool:
+        """El objetivo está delante, a la altura de los ojos, dentro del alcance y sin ningún
+        sólido (ladrillos, bloques, bordes) en medio."""
         eye_y = self.rect.y + self.EYE_Y
         if not (target.top - 6 <= eye_y <= target.bottom + 6):
             return False
         dx = target.centerx - self.rect.centerx
-        return dx * self.direction > 0 and abs(dx) <= self.SIGHT
+        if not (dx * self.direction > 0 and abs(dx) <= self.SIGHT):
+            return False
+        return not self.blocked_between(target, solids)
+
+    def gap_to(self, target) -> float:
+        """Distancia horizontal entre el frente del enemigo y el lado cercano del objetivo."""
+        if self.direction > 0:
+            return max(0, target.left - self.rect.right)
+        return max(0, self.rect.left - target.right)
+
+    def blocked_between(self, target, solids) -> bool:
+        """Hay un sólido entre los ojos y el objetivo (a la altura de los ojos)."""
+        eye_y = self.rect.y + self.EYE_Y
+        if self.direction > 0:
+            left, right = self.rect.right, target.left
+        else:
+            left, right = target.right, self.rect.left
+        if right <= left:
+            return False
+        line = Rect(left, eye_y - 1, right - left, 2)
+        return any(line.colliderect(s) for s in solids)
 
     def update(self, dt, solids, oneway, target=None, predicted=None):
         """``target``: rectángulo del jugador (None = no ataca, p. ej. en el tutorial).
@@ -210,13 +258,20 @@ class Enemy(Body):
         self.cooldown = max(0.0, self.cooldown - dt)
         if self.cooldown <= 0:
             self.tired = False       # ya se ha recuperado
-        seen = target is not None and (
-            self.sees(target) or (predicted is not None and self.sees(predicted)))
+        seen_rect = None
+        if target is not None:
+            if self.sees(target, solids):
+                seen_rect = target
+            elif predicted is not None and self.sees(predicted, solids):
+                seen_rect = predicted
+        seen = seen_rect is not None
         if self.attack is None and self.cooldown <= 0 and self.coyote > 0 and seen:
             self.sight_t += dt
             if self.sight_t >= self.attack_delay - 1e-9:
                 self.sight_t = 0.0
                 self.attack_t = 0.0
+                # Cerca: ataque normal (mitad de alcance). Lejos: súper ataque.
+                self.super_attack = self.gap_to(seen_rect) > self.NORMAL_REACH
                 self._start_attack(solids)
         elif not seen:
             self.sight_t = 0.0
@@ -249,7 +304,11 @@ class Enemy(Body):
         return None
 
     def _end_attack(self, cooldown):
+        """Termina el ataque. El súper ataque gasta más: recarga SUPER_COOLDOWN_FACTOR veces."""
+        if self.super_attack:
+            cooldown *= S.SUPER_COOLDOWN_FACTOR
         self.attack = None
+        self.super_attack = False
         self.cooldown = cooldown * self.cooldown_factor
 
 
@@ -258,12 +317,33 @@ class TongueEnemy(Enemy):
 
     kind = "tongue"
     SIGHT = S.TONGUE_RANGE + 14
+    NORMAL_REACH = S.TONGUE_REACH_NORMAL
     MOUTH_Y = 22
+
+    def __init__(self, x, y, speed, rng):
+        super().__init__(x, y, speed, rng)
+        self.reach = S.TONGUE_RANGE   # hasta dónde puede llegar la lengua (sin atravesar muros)
 
     def _start_attack(self, solids):
         self.attack = "tongue"
+        self._measure_reach(solids)
+
+    def _measure_reach(self, solids):
+        """La lengua se para en el primer sólido (ladrillo, bloque o borde) que encuentre."""
+        mx, my = self.mouth()
+        band = Rect(0, my - 5, 1, 10)
+        reach = float(S.TONGUE_RANGE)
+        for s in solids:
+            if not (s.top < band.bottom and s.bottom > band.top):
+                continue
+            if self.direction > 0 and s.left >= mx - 1:
+                reach = min(reach, s.left - mx)
+            elif self.direction < 0 and s.right <= mx + 1:
+                reach = min(reach, mx - s.right)
+        self.reach = max(0.0, reach)
 
     def _attack_step(self, solids):
+        self._measure_reach(solids)
         if self.attack_t >= S.TONGUE_OUT + S.TONGUE_HOLD + S.TONGUE_IN:
             self._end_attack(S.TONGUE_COOLDOWN)
             self.tired = True        # mientras recarga va cansado, con la lengua fuera
@@ -279,7 +359,8 @@ class TongueEnemy(Enemy):
             k = 1.0
         else:
             k = max(0.0, 1.0 - (t - S.TONGUE_OUT - S.TONGUE_HOLD) / S.TONGUE_IN)
-        return S.TONGUE_RANGE * k
+        max_len = S.TONGUE_RANGE if self.super_attack else S.TONGUE_REACH_NORMAL
+        return min(max_len * k, self.reach)
 
     def mouth(self):
         x = self.rect.right if self.direction > 0 else self.rect.left
@@ -299,6 +380,7 @@ class LaserEnemy(Enemy):
 
     kind = "laser"
     SIGHT = S.FIELD_W
+    NORMAL_REACH = S.LASER_REACH_NORMAL
 
     def __init__(self, x, y, speed, rng):
         super().__init__(x, y, speed, rng)
@@ -339,7 +421,10 @@ class LaserEnemy(Enemy):
         if self.attack != "fire":
             return None
         ex, ey = self.eyes()
-        left, right = sorted((ex, self.beam_end))
+        end = self.beam_end
+        if not self.super_attack:  # el normal llega solo hasta la mitad del alcance
+            end = ex + self.direction * min(abs(end - ex), S.LASER_REACH_NORMAL)
+        left, right = sorted((ex, end))
         return Rect(left, ey - 4, right - left, 8)
 
 
@@ -435,7 +520,18 @@ class Ghost:
         self.fx += math.sin(self.t * 4) * 25 * dt   # leve vaivén al subir
         self.rect.topleft = (round(self.fx), round(self.fy))
 
-    @property
-    def gone(self) -> bool:
-        """Ya ha salido por el borde superior de la pantalla (por encima del marcador)."""
-        return self.rect.bottom + 12 < -S.HUD_H
+    def gone(self, camera_y=0.0) -> bool:
+        """Ya ha salido por el borde superior de la pantalla (por encima del marcador).
+        ``camera_y``: altura del mundo que se ve arriba del todo (niveles con scroll)."""
+        return self.rect.bottom + 12 < camera_y - S.HUD_H
+
+
+class Medkit:
+    """Botiquín: círculo blanco con una cruz roja. Al tocarlo, recupera un corazón."""
+
+    def __init__(self, x, y):
+        s = S.MEDKIT_SIZE
+        self.rect = Rect(0, 0, s, s)
+        self.rect.center = (x + S.TILE // 2, y + S.TILE // 2)
+        self.cell = (x, y)
+        self.taken = False

@@ -50,7 +50,7 @@ def test_db_save_load_clear_and_migration(tmp_path):
     conn.close()
 
     db = Database(path)
-    assert db.conn.execute("PRAGMA user_version").fetchone()[0] == 2
+    assert db.conn.execute("PRAGMA user_version").fetchone()[0] == 3
     assert db.load_game() is None
     db.save_game({"a": 1})
     db.save_game({"a": 2})  # sobrescribe: solo hay una partida
@@ -109,7 +109,8 @@ def test_lost_game_saves_nothing_and_won_level_saves_next():
     r = savegame.restore(data)
     assert (r.number, r.lives, r.score, r.state) == (2, 2, 900, "playing")
 
-    w = World(3, seed=1)
+    from orbes.levels import LEVELS
+    w = World(len(LEVELS) - 1, seed=1)
     w.state = "won"  # último nivel: juego terminado
     assert savegame.snapshot(w) is None
 

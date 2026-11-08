@@ -1,18 +1,20 @@
 """Reglas del juego sin dependencia de ventana ni de dibujo."""
 
 import logging
+import math
 import random
 
 from pygame import Rect
 
 from . import settings as S
-from .entities import ENEMY_TYPES, Bubble, Ghost, Player, Star
+from .entities import ENEMY_TYPES, Bubble, Ghost, Medkit, Player, Star
 from . import levels
 from .levels import parse_level
 
 log = logging.getLogger(__name__)
 
-# Zona interior del nivel (dentro de los bordes)
+# Zona interior de un nivel de 16 filas (dentro de los bordes). Cada mundo tiene la suya
+# en ``World.interior``, que depende de la altura del nivel.
 INTERIOR = Rect(S.BORDER, S.BORDER, S.FIELD_W - 2 * S.BORDER, S.FIELD_H - 2 * S.BORDER)
 
 # Pasos del tutorial, en orden. Cada uno se completa con el evento del mismo nombre;
@@ -43,6 +45,7 @@ class World:
         self.tutorial_done: set = set()   # pasos del tutorial ya hechos
         # Celebración de fin de nivel: el jugador termina su salto, hace pie y saluda
         self.landed = False
+        self.hearts_gained = 0.0     # corazones ganados al superar el nivel
         self.win_t = 0.0             # tiempo desde que se tocó la estrella
         self.celebrate_t = 0.0       # tiempo celebrando ya en el suelo
         self.load_level()
@@ -77,10 +80,16 @@ class World:
         self.level = levels.LEVELS[self.level_index]
         data = parse_level(self.level.rows)
         self.solids = data.solids
+        self.bricks = data.bricks
         self.oneway = data.oneway
+        self.height = data.height                 # alto del mundo (px)
+        self.floor_y = data.height - S.BORDER     # superficie del suelo
+        self.interior = Rect(S.BORDER, S.BORDER, S.FIELD_W - 2 * S.BORDER,
+                             data.height - 2 * S.BORDER)
         self.spawn = data.player_spawn
         self.player = Player(*self.spawn)
-        speed = S.ENEMY_BASE_SPEED + S.ENEMY_SPEED_STEP * max(0, self.number - 1)
+        steps = min(max(0, self.number - 1), S.ENEMY_SPEED_MAX_STEPS)
+        speed = S.ENEMY_BASE_SPEED + S.ENEMY_SPEED_STEP * steps
         speed *= self.rules["enemy_speed"]
         self.enemies = [ENEMY_TYPES[kind](x, y, speed, self.rng)
                         for x, y, kind in data.enemy_spawns]
@@ -89,6 +98,28 @@ class World:
             e.attack_delay = self.rules["attack_delay"]
         self.bubbles: list[Bubble] = []
         self.star = Star(*data.star_pos) if data.star_pos else None
+        self.medkits = [Medkit(x, y) for x, y in data.medkits]
+        self.camera_y = 0.0
+        self.snap_camera()
+
+    # --- cámara (scroll vertical) ---
+    @property
+    def scrolls(self) -> bool:
+        """El nivel es más alto que la pantalla."""
+        return self.height > S.FIELD_H
+
+    def _camera_target(self) -> float:
+        target = self.player.rect.centery - S.FIELD_H * S.CAMERA_ANCHOR
+        return min(max(target, 0.0), float(self.height - S.FIELD_H))  # sin salirse del nivel
+
+    def snap_camera(self):
+        """Coloca la cámara directamente sobre el jugador (al empezar o al reaparecer)."""
+        self.camera_y = self._camera_target()
+
+    def _update_camera(self, dt):
+        target = self._camera_target()
+        self.camera_y += (target - self.camera_y) * min(1.0, dt * S.CAMERA_SMOOTH)
+        self.camera_y = min(max(self.camera_y, 0.0), float(self.height - S.FIELD_H))
 
     @property
     def level_points(self) -> int:
@@ -106,6 +137,7 @@ class World:
     def update(self, dt, actions):
         self.message_timer = max(0.0, self.message_timer - dt)
         self._update_ghosts(dt)
+        self._update_camera(dt)
         if self.state == "dying":
             self._update_dying(dt)
             return
@@ -123,7 +155,7 @@ class World:
         p.update(dt, pressed, just, self.solids, self.oneway)
         if pressed & {"left", "right"}:
             self._tutorial_event("move")
-        if "jump" in just:
+        if p.jumps == 2:                  # el paso del salto pide el salto doble
             self._tutorial_event("jump")
         if p.just_dropped:
             self._tutorial_event("drop")
@@ -138,6 +170,7 @@ class World:
                 e.update(dt, self.solids, self.oneway, target, predicted)
         self._update_bubbles(dt)
         self._rescue_escaped()
+        self._check_medkits()
         self._check_player_hit()
         if self.enemies_left == 0:
             self._tutorial_event("clear")
@@ -152,23 +185,24 @@ class World:
         dx = p.vx * t
         dy = 0.0 if p.on_ground or p.coyote > 0 else p.vy * t + 0.5 * S.GRAVITY * t * t
         r = p.rect.move(round(dx), round(dy))
-        return r.clamp(INTERIOR)
+        return r.clamp(self.interior)
 
     # --- red de seguridad ---
     def _rescue_escaped(self):
         """Devuelve al campo a quien se haya salido de él, para que el nivel nunca se bloquee
         (un enemigo vivo fuera de la pantalla haría imposible terminarlo)."""
         for e in self.enemies:
-            if e.alive and e.state == "walk" and not INTERIOR.colliderect(e.rect):
+            if e.alive and e.state == "walk" and not self.interior.colliderect(e.rect):
                 log.warning("Enemigo %s fuera del campo en %s; vuelve a su inicio",
                             e.kind, e.rect.topleft)
                 e.place(*e.spawn)
                 e.vx = e.vy = 0.0
                 e.attack = None
         p = self.player
-        if not INTERIOR.colliderect(p.rect):
+        if not self.interior.colliderect(p.rect):
             log.warning("Jugador fuera del campo en %s; vuelve al inicio", p.rect.topleft)
             p.respawn(self.spawn)
+            self.snap_camera()
 
     # --- estrella ---
     def _check_star(self):
@@ -188,6 +222,12 @@ class World:
     def _win(self):
         self.state = "won"
         self.score += S.POINTS_LEVEL
+        # Superar un nivel da un corazón (sin pasar del máximo). En el tutorial no: al
+        # terminarlo, el nivel 1 empieza con la vida inicial.
+        before = self.lives
+        if not self.tutorial:
+            self.lives = min(self.max_lives, self.lives + S.LEVEL_HEAL)
+        self.hearts_gained = self.lives - before
         self.message_timer = 0.0
         self.player.invuln = 0.0     # sin parpadeo durante la celebración
         self.landed = False
@@ -268,10 +308,49 @@ class World:
             if not (e.alive and e.state == "walk"):
                 continue
             attack = e.attack_rect()
-            if p.rect.colliderect(e.rect) or (attack is not None and p.rect.colliderect(attack)):
-                self.lives -= 1
-                self._die()
+            if attack is not None and p.rect.colliderect(attack):
+                self.hit_player(S.DAMAGE_ATTACK)              # lengua o láser
                 return
+            if p.rect.colliderect(e.rect):
+                self.hit_player(S.DAMAGE_TOUCH, source=e)     # contacto
+                return
+
+    @property
+    def max_lives(self) -> float:
+        """Máximo de corazones de la dificultad (en difícil, más que los iniciales)."""
+        return self.rules.get("max_lives", self.rules["lives"])
+
+    def _check_medkits(self):
+        """Coger un botiquín recupera un corazón (sin pasar del máximo). Con la vida al
+        completo no se coge: se queda donde está para más adelante."""
+        p = self.player
+        for m in self.medkits:
+            if m.taken or not p.rect.colliderect(m.rect):
+                continue
+            if self.lives >= self.max_lives:
+                continue
+            self.lives = min(self.max_lives, self.lives + S.MEDKIT_HEAL)
+            m.taken = True
+        self.medkits = [m for m in self.medkits if not m.taken]
+
+    def hit_player(self, damage, source=None):
+        """Resta `damage` corazones. Muere si se ha vaciado algún corazón entero (los ataques
+        siempre; el contacto solo si completa un corazón); si no, queda herido y sigue."""
+        before = self.lives
+        self.lives = max(0.0, round((self.lives - damage) * 2) / 2)   # en medios corazones
+        emptied = math.ceil(before) > math.ceil(self.lives)          # se vació un corazón
+        if emptied or self.lives <= 0 or damage >= S.DAMAGE_ATTACK:
+            self._die()
+            return
+        self._hurt(source)
+
+    def _hurt(self, source):
+        """Herido sin morir: un empujón para separarse del enemigo y un rato invulnerable."""
+        p = self.player
+        p.invuln = S.HURT_INVULN
+        away = 1 if source is None or p.rect.centerx >= source.rect.centerx else -1
+        p.knockback = (away * S.KNOCKBACK_SPEED, S.KNOCKBACK_TIME)
+        p.vy = min(p.vy, -180.0)                  # saltito
 
     # --- muerte del jugador ---
     def _die(self):
@@ -334,8 +413,9 @@ class World:
             return
         self.player.respawn(self.spawn)
         self.state = "playing"
+        self.snap_camera()           # reaparece abajo del todo: la cámara salta con él
 
     def _update_ghosts(self, dt):
         for g in self.ghosts:
             g.update(dt)
-        self.ghosts = [g for g in self.ghosts if not g.gone]
+        self.ghosts = [g for g in self.ghosts if not g.gone(self.camera_y)]

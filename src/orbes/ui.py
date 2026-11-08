@@ -1,5 +1,7 @@
 """Utilidades de interfaz mínimas."""
 
+import math
+
 import pygame
 
 from . import settings as S
@@ -19,6 +21,53 @@ def draw_text(surf, font, text, color, center=None, topleft=None, midleft=None, 
         rect.midright = midright
     surf.blit(img, rect)
     return rect
+
+
+_heart_cache: dict = {}
+
+
+def heart_points(center, size):
+    """Polígono de un corazón de `size` px de ancho centrado en `center` (curva clásica)."""
+    key = size
+    unit = _heart_cache.get(key)
+    if unit is None:
+        unit = []
+        for i in range(40):
+            t = 2 * math.pi * i / 40
+            x = 16 * math.sin(t) ** 3
+            y = -(13 * math.cos(t) - 5 * math.cos(2 * t) - 2 * math.cos(3 * t) - math.cos(4 * t))
+            unit.append((x * size / 34, (y + 2) * size / 34))
+        _heart_cache[key] = unit
+    cx, cy = center
+    return [(cx + x, cy + y) for x, y in unit]
+
+
+def draw_heart(surf, center, size, filled):
+    """Corazón: `filled` = 1 (entero), 0.5 (medio: mitad izquierda) o 0 (solo el borde).
+    Se aceptan también True/False."""
+    fill = float(filled)
+    pts = heart_points(center, size)
+    if fill >= 1:
+        pygame.draw.polygon(surf, S.HEART, pts)
+        pygame.draw.polygon(surf, (255, 150, 160), pts, 1)   # brillo en el contorno
+        return
+    pygame.draw.polygon(surf, S.HEART_EMPTY, pts, 2)
+    if fill > 0:
+        old = surf.get_clip()
+        left = pygame.Rect(center[0] - size, center[1] - size, size * fill * 2, size * 2)
+        surf.set_clip(left.clip(old) if old else left)
+        pygame.draw.polygon(surf, S.HEART, pts)
+        surf.set_clip(old)
+
+
+def draw_hearts(surf, lives, total, right, center_y, size=14, gap=4):
+    """Fila de `total` corazones alineada a la derecha. `lives` puede tener medios
+    (p. ej. 2.5 = dos enteros, uno a medias y el resto vacíos)."""
+    total = max(total, math.ceil(lives))
+    for i in range(total):
+        x = right - size / 2 - (total - 1 - i) * (size + gap)
+        fill = min(1.0, max(0.0, lives - i))
+        draw_heart(surf, (x, center_y), size, filled=fill)
 
 
 _fonts: dict = {}

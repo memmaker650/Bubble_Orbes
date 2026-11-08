@@ -12,6 +12,13 @@ def step(world, n, actions=()):
         world.update(DT, set(actions))
 
 
+def double_jump(world):
+    """Salto completo: pulsar, soltar un instante y volver a pulsar en el aire."""
+    step(world, 1, {"jump"})
+    step(world, 6)
+    step(world, 1, {"jump"})
+
+
 @pytest.mark.parametrize("i", range(len(LEVELS)))
 def test_levels_parse(i):
     data = parse_level(LEVELS[i].rows)
@@ -39,7 +46,7 @@ def test_player_can_reach_first_platform():
     p.place(x, S.FLOOR_Y - p.rect.height)
     step(w, 10)
     assert p.rect.bottom == S.FLOOR_Y
-    step(w, 1, {"jump"})
+    double_jump(w)                     # hace falta el salto doble para subir 3 filas
     step(w, 80)
     # Atraviesa la plataforma desde abajo y aterriza encima de ella.
     assert p.rect.bottom == platform_y
@@ -84,17 +91,26 @@ def _until_not_dying(w, limit=600):
     raise AssertionError("la animación de muerte no termina")
 
 
-def test_enemy_contact_costs_life_then_game_over():
-    w = World(1, lives=2, seed=1)
-    e = w.enemies[0]
-    e.place(*w.player.rect.topleft)
-    step(w, 1)
-    assert w.lives == 1 and w.state == "dying"     # animación de muerte antes de reaparecer
-    _until_not_dying(w)
-    assert w.state == "playing" and w.player.invuln > 0 and not w.player.dead
+def _touch(w, e):
     w.player.invuln = 0
     e.place(*w.player.rect.topleft)
     step(w, 1)
+
+
+def test_contact_hurts_half_heart_second_contact_kills():
+    w = World(1, lives=2, seed=1)
+    e = w.enemies[0]
+    e.direction = 1
+    _touch(w, e)
+    assert w.lives == 1.5 and w.state == "playing"   # herido: sigue jugando
+    assert w.player.invuln > 0 and not w.player.dead
+    _touch(w, e)
+    assert w.lives == 1 and w.state == "dying"       # se vació el corazón: muere
+    _until_not_dying(w)
+    assert w.state == "playing" and w.player.invuln > 0 and not w.player.dead
+    _touch(w, e)
+    assert w.lives == 0.5 and w.state == "playing"
+    _touch(w, e)
     assert w.lives == 0 and w.state == "dying"
     _until_not_dying(w)
     assert w.state == "lost"
@@ -199,14 +215,14 @@ def test_tongue_does_not_attack_behind_or_far():
 
 
 def test_laser_lasts_one_second_then_recharges_four():
-    w, e, p = _duel(LaserEnemy, gap=200)
+    w, e, p = _duel(LaserEnemy, gap=120)
     p.invuln = 99            # observamos el ciclo sin perder vidas
     step(w, 1)
     assert e.attack == "windup"
     step(w, int(S.LASER_WINDUP * 60) + 1)
     assert e.attack == "fire"
     beam = e.attack_rect()
-    assert beam.colliderect(p.rect) and beam.left == S.BORDER   # llega hasta el borde
+    assert beam.colliderect(p.rect) and beam.width <= S.LASER_REACH_NORMAL  # normal: mitad
     step(w, 50)              # ~0.85 s disparando: sigue activo
     assert e.attack == "fire"
     step(w, 12)              # pasado 1 s: se apaga
@@ -215,7 +231,7 @@ def test_laser_lasts_one_second_then_recharges_four():
     step(w, int(3.8 * 60))
     # Mientras recarga sigue andando: lo devolvemos frente al jugador para comprobar
     # que, aun viéndolo, no dispara hasta completar los 4 s.
-    e.place(p.rect.right + 200, FLOOR_Y)
+    e.place(p.rect.right + 120, FLOOR_Y)
     e.direction = -1
     step(w, 1)
     assert e.attack is None and e.cooldown > 0
@@ -224,7 +240,7 @@ def test_laser_lasts_one_second_then_recharges_four():
 
 
 def test_laser_hits_player_across_room():
-    w, e, p = _duel(LaserEnemy, gap=200)
+    w, e, p = _duel(LaserEnemy, gap=200)      # lejos: súper láser, hasta el muro
     lives = w.lives
     step(w, int((S.LASER_WINDUP + 0.1) * 60))
     assert w.lives == lives - 1
@@ -250,7 +266,7 @@ def test_difficulty_rules_are_applied(name):
 
 
 def test_normal_difficulty_keeps_laser_one_second_four_recharge():
-    w, e, p = _duel(LaserEnemy, gap=200)
+    w, e, p = _duel(LaserEnemy, gap=120)      # cerca: ataque normal
     assert w.difficulty == "normal"
     p.invuln = 99
     step(w, int((S.LASER_WINDUP + S.LASER_DURATION) * 60) + 5)
@@ -481,7 +497,7 @@ def test_player_killed_in_air_falls_and_lies_on_floor():
     p = w.player
     p.place(S.cell_pos(4, 11)[0], S.cell_pos(0, 11)[1])   # en el aire, en mitad del nivel
     p.vy = -300.0
-    w.enemies[0].place(*p.rect.topleft)
+    w.hit_player(S.DAMAGE_ATTACK)                          # alcanzado por un ataque
     step(w, 1)
     assert w.state == "dying" and p.dead and not p.landed_dead
     others = [(e.rect.topleft) for e in w.enemies]
@@ -502,7 +518,7 @@ def test_player_killed_in_air_falls_and_lies_on_floor():
 def test_closing_during_death_saves_respawned_or_nothing():
     from orbes import savegame
     w = World(1, lives=2, seed=1)
-    w.enemies[0].place(*w.player.rect.topleft)
+    w.hit_player(S.DAMAGE_ATTACK)
     step(w, 1)
     assert w.state == "dying"
     data = savegame.snapshot(w)
@@ -518,7 +534,7 @@ def test_closing_during_death_saves_respawned_or_nothing():
 
 def _kill(w):
     w.player.invuln = 0
-    w.enemies[0].place(*w.player.rect.topleft)
+    w.hit_player(S.DAMAGE_ATTACK)        # un ataque (lengua o láser) siempre mata
     step(w, 1)
     assert w.state == "dying"
 
@@ -640,7 +656,7 @@ def test_hard_preemptive_laser_on_player_dropping_into_line():
 
 def test_laser_pupils_black_while_recharging_red_when_charged():
     from orbes.scenes import GameScene
-    w, e, p = _duel(LaserEnemy, gap=200)
+    w, e, p = _duel(LaserEnemy, gap=120)
     p.invuln = 99
     assert e.charged and GameScene.laser_pupil_color(e) == S.LASER
     step(w, int((S.LASER_WINDUP + S.LASER_DURATION) * 60) + 3)   # dispara y empieza a recargar
@@ -652,7 +668,7 @@ def test_laser_pupils_black_while_recharging_red_when_charged():
 
 
 def test_tongue_enemy_is_tired_and_slower_while_recharging():
-    w, e, p = _duel(TongueEnemy, gap=80)
+    w, e, p = _duel(TongueEnemy, gap=40)
     p.invuln = 99
     assert not e.tired
     step(w, int((S.TONGUE_OUT + S.TONGUE_HOLD + S.TONGUE_IN) * 60) + 3)
@@ -767,3 +783,256 @@ def test_down_key_and_button_exist():
     rects = list(BUTTONS.values())
     assert all(a.right < b.left for a, b in zip(rects, rects[1:]))   # sin solaparse
     assert rects[-1].right <= S.LOGICAL_W - 5
+
+
+
+# --- salto corto y doble pulsación ---
+
+def _jump_height(presses):
+    w = World(1, seed=1)
+    for e in w.enemies:
+        e.alive = False
+    p = w.player
+    step(w, 10)
+    y0 = top = p.rect.bottom
+    for f in range(90):
+        step(w, 1, {"jump"} if f in presses else ())
+        top = min(top, p.rect.bottom)
+    return y0 - top
+
+
+def test_single_press_jumps_half_height():
+    full = _jump_height({0, 8})
+    single = _jump_height({0})
+    assert single == pytest.approx(full / 2, abs=4)
+    assert single < 3 * S.TILE                   # no llega a la plataforma de 3 filas
+
+
+@pytest.mark.parametrize("second", [3, 8, 14, 18, 24])
+def test_double_press_reaches_current_full_height_whenever_pressed(second):
+    h = _jump_height({0, second})
+    assert h == pytest.approx(S.JUMP_FULL_H, abs=6)   # misma altura que el salto de antes
+    assert h > 3 * S.TILE                             # llega a la plataforma de 3 filas
+
+
+def test_no_triple_jump_and_no_double_without_first():
+    assert _jump_height({0, 8, 16, 24}) == _jump_height({0, 8})
+    # Cayendo de una plataforma (sin haber saltado) la pulsación no da impulso extra
+    w, p, top = _standing_on_platform(10, 4)
+    step(w, 1, {"down"})
+    step(w, 8)
+    vy = p.vy
+    step(w, 1, {"jump"})
+    assert p.vy >= vy                            # sigue cayendo
+
+
+def test_jumps_reset_after_landing():
+    w = World(1, seed=1)
+    for e in w.enemies:
+        e.alive = False
+    p = w.player
+    step(w, 10)
+    double_jump(w)
+    for _ in range(120):
+        step(w, 1)
+        if p.on_ground:
+            break
+    assert p.jumps == 0
+    double_jump(w)
+    assert p.jumps == 2
+
+
+def test_can_shoot_while_in_the_air():
+    w = World(1, seed=1)
+    for e in w.enemies:
+        e.alive = False
+    step(w, 10)
+    step(w, 1, {"jump"})
+    step(w, 4)
+    assert not w.player.on_ground
+    step(w, 1, {"bubble"})
+    assert w.bubbles
+
+
+
+# --- ataque normal (mitad de alcance) y súper ataque (alcance de antes, doble recarga) ---
+
+def _attack_and_finish(w, e, p):
+    p.invuln = 99
+    for _ in range(300):
+        step(w, 1)
+        if e.attack is not None:
+            break
+    kind = "super" if e.super_attack else "normal"
+    longest = 0
+    while e.attack is not None:
+        r = e.attack_rect()
+        if r is not None:
+            longest = max(longest, r.width)
+        step(w, 1)
+    return kind, longest, e.cooldown
+
+
+def test_tongue_normal_attack_reaches_half_and_same_recharge():
+    w, e, p = _duel(TongueEnemy, gap=40)
+    kind, longest, cooldown = _attack_and_finish(w, e, p)
+    assert kind == "normal"
+    assert longest <= S.TONGUE_REACH_NORMAL == S.TONGUE_RANGE / 2
+    assert cooldown == pytest.approx(S.TONGUE_COOLDOWN, abs=0.05)
+
+
+def test_tongue_super_attack_reaches_full_range_with_double_recharge():
+    w, e, p = _duel(TongueEnemy, gap=80)
+    kind, longest, cooldown = _attack_and_finish(w, e, p)
+    assert kind == "super"
+    assert longest > S.TONGUE_REACH_NORMAL and longest <= S.TONGUE_RANGE
+    assert cooldown == pytest.approx(S.TONGUE_COOLDOWN * 2, abs=0.05)
+
+
+def test_laser_normal_reaches_half_and_same_recharge():
+    w, e, p = _duel(LaserEnemy, gap=120)
+    kind, longest, cooldown = _attack_and_finish(w, e, p)
+    assert kind == "normal"
+    assert longest <= S.LASER_REACH_NORMAL
+    assert cooldown == pytest.approx(S.LASER_RECHARGE, abs=0.05)
+
+
+def test_laser_super_reaches_wall_with_double_recharge():
+    w, e, p = _duel(LaserEnemy, gap=220)
+    kind, longest, cooldown = _attack_and_finish(w, e, p)
+    assert kind == "super"
+    assert longest > S.LASER_REACH_NORMAL
+    assert cooldown == pytest.approx(S.LASER_RECHARGE * 2, abs=0.05)
+
+
+def test_player_just_beyond_normal_reach_is_safe_from_normal_tongue():
+    """Si el enemigo usara siempre el ataque normal, a 70 px la lengua no llegaría."""
+    w, e, p = _duel(TongueEnemy, gap=70)
+    e.attack, e.attack_t, e.super_attack = "tongue", S.TONGUE_OUT, False
+    e._measure_reach(w.solids)
+    assert not e.attack_rect().colliderect(p.rect)
+    e.super_attack = True
+    assert e.attack_rect().colliderect(p.rect)
+
+
+def test_super_attack_survives_save():
+    from orbes import savegame
+    w = World(1, seed=1)
+    e = next(x for x in w.enemies if isinstance(x, LaserEnemy))
+    e.attack, e.super_attack = "fire", True
+    r = savegame.restore(savegame.snapshot(w))
+    assert r.enemies[w.enemies.index(e)].super_attack
+
+
+# --- daño: contacto medio corazón, ataque uno entero ---
+
+def test_attack_takes_a_full_heart_and_always_kills():
+    w = World(1, lives=3, seed=1)
+    w.hit_player(S.DAMAGE_ATTACK)
+    assert w.lives == 2 and w.state == "dying"
+
+
+def test_attack_after_contact_takes_half_of_two_hearts():
+    """Con un corazón a medias, un ataque quita esa mitad y la mitad del siguiente."""
+    w = World(1, lives=3, seed=1)
+    w.hit_player(S.DAMAGE_TOUCH, source=w.enemies[0])
+    assert w.lives == 2.5 and w.state == "playing"
+    w.player.invuln = 0
+    w.hit_player(S.DAMAGE_ATTACK)
+    assert w.lives == 1.5 and w.state == "dying"
+    _until_not_dying(w)
+    assert w.state == "playing" and w.lives == 1.5        # reaparece con 1 y medio
+
+
+def test_contact_pushes_player_away_from_enemy():
+    w = World(1, lives=3, seed=1)
+    e = w.enemies[0]
+    p = w.player
+    step(w, 5)
+    e.direction = 1
+    e.place(p.rect.x + 20, p.rect.y)                     # enemigo a la derecha
+    e.jump_cd = 99
+    x0 = p.rect.x
+    step(w, 1)
+    assert w.lives == 2.5
+    step(w, 8)
+    assert p.rect.x < x0                                 # empujado hacia la izquierda
+    assert p.invuln > 0
+
+
+def test_tongue_hit_is_an_attack_not_a_touch():
+    w, e, p = _duel(TongueEnemy, gap=40)
+    lives = w.lives
+    for _ in range(30):
+        step(w, 1)
+        if w.lives != lives:
+            break
+    assert w.lives == lives - S.DAMAGE_ATTACK and w.state == "dying"
+
+
+def test_half_hearts_survive_save():
+    from orbes import savegame
+    w = World(2, lives=1.5, seed=1)
+    r = savegame.restore(savegame.snapshot(w))
+    assert r.lives == 1.5
+
+
+# --- +1 corazón al superar un nivel ---
+
+def _win_now(w):
+    for e in w.enemies:
+        e.alive = False
+    w.player.place(*w.star.rect.topleft)
+    step(w, 1)
+    assert w.state == "won"
+
+
+def test_completing_a_level_gives_a_heart():
+    w = World(1, lives=1.5, seed=1)
+    _win_now(w)
+    assert w.lives == 2.5 and w.hearts_gained == 1
+
+
+def test_level_heart_capped_at_max_in_normal_and_easy():
+    w = World(1, lives=3, seed=1)
+    _win_now(w)
+    assert w.lives == 3 and w.hearts_gained == 0
+    w = World(1, lives=5, seed=1, difficulty="easy")
+    _win_now(w)
+    assert w.lives == 5
+
+
+def test_hard_starts_with_two_and_can_reach_three():
+    w = World(1, seed=1, difficulty="hard")
+    assert w.lives == 2 and w.max_lives == 3
+    _win_now(w)
+    assert w.lives == 3
+    w2 = World(2, lives=w.lives, seed=1, difficulty="hard")
+    _win_now(w2)
+    assert w2.lives == 3                       # nunca más de 3
+
+
+def test_medkit_can_also_reach_three_in_hard():
+    from orbes.levels import index_of
+    w = World(index_of(5), lives=2, seed=1, difficulty="hard")
+    for e in w.enemies:
+        e.alive = False
+    m = w.medkits[0]
+    w.player.place(m.rect.x, m.rect.y)
+    step(w, 1)
+    assert w.lives == 3
+
+
+def test_tutorial_gives_no_heart():
+    w = World(0, lives=2, seed=1)
+    _win_now(w)
+    assert w.lives == 2 and w.hearts_gained == 0
+
+
+def test_heart_carries_over_to_next_level_and_save(tmp_path):
+    from orbes import savegame
+    w = World(1, lives=2, seed=1)
+    _win_now(w)
+    data = savegame.snapshot(w)                # al cerrar tras ganar: inicio del siguiente
+    assert data["lives"] == 3
+    assert savegame.restore(data).lives == 3

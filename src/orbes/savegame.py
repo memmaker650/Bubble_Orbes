@@ -22,7 +22,8 @@ LEGACY_VERSIONS = {1}
 
 _BODY = ("fx", "fy", "vx", "vy", "on_ground", "coyote")
 _ENEMY = _BODY + ("direction", "state", "alive", "angry", "jump_cd",
-                  "attack", "attack_t", "cooldown", "sight_t", "tired")
+                  "attack", "attack_t", "cooldown", "sight_t", "tired",
+                  "super_attack")
 _BUBBLE = ("fx", "fy", "vx", "state", "timer", "life", "age")
 
 
@@ -90,6 +91,7 @@ def snapshot(w: World) -> dict | None:
         "player": _player_data(w),
         "enemies": enemies,
         "bubbles": bubbles,
+        "medkits": [list(m.cell) for m in w.medkits],    # los que quedan sin coger
     }
 
 
@@ -100,7 +102,7 @@ def restore(data: dict) -> World:
         if version != SAVE_VERSION and version not in LEGACY_VERSIONS:
             raise ValueError(f"versión de guardado desconocida: {version}")
         index = levels.index_of(int(data["level_number"]))
-        lives, score = int(data["lives"]), int(data["score"])
+        lives, score = float(data["lives"]), int(data["score"])
         # Partidas guardadas antes de existir la dificultad: "normal"
         difficulty = data.get("difficulty", S.DEFAULT_DIFFICULTY)
     except (KeyError, TypeError, ValueError, AttributeError) as exc:
@@ -140,6 +142,9 @@ def restore(data: dict) -> World:
             if e.kind == "laser":
                 e.beam_end = ed.get("beam_end", 0)
 
+        if "medkits" in data:                          # los ya cogidos no vuelven
+            left = {tuple(c) for c in data["medkits"]}
+            w.medkits = [m for m in w.medkits if m.cell in left]
         w.bubbles = []
         for bd in data.get("bubbles", []):
             b = Bubble(0, 0, 1)
@@ -152,4 +157,5 @@ def restore(data: dict) -> World:
         raise ValueError(f"partida guardada no válida: {exc}") from exc
 
     w.message, w.message_timer = "", 0.0  # no repetir el aviso inicial del tutorial
+    w.snap_camera()
     return w

@@ -18,7 +18,7 @@ def step(world, n, actions=()):
 # --- JSON y generador ---
 
 def test_levels_are_loaded_from_json_in_order():
-    assert [lv.number for lv in LEVELS] == [0, 1, 2, 3]
+    assert [lv.number for lv in LEVELS] == list(range(21))      # tutorial + 20 niveles
     assert (LEVELS_DIR / "level_00.json").exists()
 
 
@@ -33,7 +33,7 @@ def test_generator_template_produces_valid_levels():
     # lo que sí debe cumplirse es que la plantilla genere niveles válidos.
     gen = LevelGenerator()
     levels = gen.default_levels()
-    assert [lv.number for lv in levels] == [0, 1, 2, 3]
+    assert [lv.number for lv in levels] == list(range(21))
     assert levels[0].rows == levels[1].rows   # el tutorial parte del mapa del nivel 1
 
 
@@ -69,7 +69,8 @@ def test_index_of_level_number():
     assert index_of(0) == 0
     assert index_of(1) == 1
     assert index_of(3) == 3
-    assert index_of(99) == 3
+    assert index_of(4) == 4
+    assert index_of(99) == len(LEVELS) - 1
 
 
 # --- tutorial ---
@@ -97,7 +98,10 @@ def test_tutorial_guides_through_steps():
     assert w.tutorial_step == "jump"
     step(w, 1)
     step(w, 1, {"jump"})
-    assert w.tutorial_step == "drop"
+    assert w.tutorial_step == "jump"         # un salto corto no basta...
+    step(w, 6)
+    step(w, 1, {"jump"})
+    assert w.tutorial_step == "drop"         # ...hace falta la segunda pulsación en el aire
     step(w, 60)
     step(w, 1, {"down"})                     # en el suelo no cuenta: no hay nada que bajar
     assert w.tutorial_step == "drop"
@@ -134,7 +138,8 @@ def test_borders_are_thin_and_interior_is_bigger():
     assert S.BORDER <= S.TILE * 0.4          # al menos un 60 % más estrechos
     assert (S.COLS, S.ROWS) == (9, 16)       # antes el interior era 7 x 14
     assert S.FIELD_W == S.COLS * S.TILE + 2 * S.BORDER
-    assert all(len(lv.rows) == S.ROWS and len(lv.rows[0]) == S.COLS for lv in LEVELS)
+    assert all(len(lv.rows) >= S.ROWS and all(len(r) == S.COLS for r in lv.rows)
+               for lv in LEVELS)
 
 
 def test_player_cannot_fall_through_thin_floor():

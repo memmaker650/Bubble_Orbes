@@ -17,7 +17,6 @@
     <text key="scores.level">N{level}</text>
     <text key="hud.score">Puntos {score}</text>
     <text key="hud.level">Nivel {level}</text>
-    <text key="hud.lives">Vidas {lives}</text>
     <text key="star.kill_all">Mata a todos los enemigos para terminar el nivel</text>
     <text key="win.title">Nivel {level} completado</text>
     <text key="win.game">¡Has ganado el juego!</text>
@@ -34,7 +33,7 @@
     <text key="win.next">Ya estás listo para el nivel 1</text>
     <text key="tutorial.safe">Tutorial: aquí los enemigos no te hacen daño</text>
     <text key="tutorial.move">Muévete con las flechas izquierda y derecha</text>
-    <text key="tutorial.jump">Salta con la flecha hacia arriba</text>
+    <text key="tutorial.jump">Salta con la flecha hacia arriba; púlsala otra vez en el aire para saltar más alto</text>
     <text key="tutorial.drop">Sube a una plataforma y bájate de ella con la flecha hacia abajo</text>
     <text key="tutorial.bubble">Lanza una burbuja con el botón del círculo{keys}</text>
     <text key="tutorial.trap">Lanza una burbuja contra un enemigo para atraparlo</text>
@@ -44,12 +43,17 @@
     <text key="menu.continue">Continuar (nivel {level})</text>
     <text key="menu.continue_tutorial">Continuar (tutorial)</text>
     <text key="play.title">Nueva partida</text>
-    <text key="play.start">Empezar (nivel {level})</text>
+    <text key="play.start">Empezar</text>
     <text key="play.difficulty">Dificultad: {value}</text>
     <text key="difficulty.easy">Fácil</text>
     <text key="difficulty.normal">Medio</text>
     <text key="difficulty.hard">Difícil</text>
     <text key="common.back">Volver</text>
+    <text key="difficulty_short.easy">F</text>
+    <text key="difficulty_short.normal">M</text>
+    <text key="difficulty_short.hard">D</text>
+    <text key="win.heart">¡+1 corazón!</text>
+    <text key="play.level">Nivel {level}</text>
   </language>
   <language code="en" name="English" flag="uk">
     <text key="menu.subtitle">Trap enemies in bubbles and pop them</text>
@@ -62,7 +66,6 @@
     <text key="scores.level">L{level}</text>
     <text key="hud.score">Score {score}</text>
     <text key="hud.level">Level {level}</text>
-    <text key="hud.lives">Lives {lives}</text>
     <text key="star.kill_all">Defeat all the enemies to finish the level</text>
     <text key="win.title">Level {level} complete</text>
     <text key="win.game">You beat the game!</text>
@@ -79,7 +82,7 @@
     <text key="win.next">You're ready for level 1</text>
     <text key="tutorial.safe">Tutorial: enemies can't hurt you here</text>
     <text key="tutorial.move">Move with the left and right arrows</text>
-    <text key="tutorial.jump">Jump with the up arrow</text>
+    <text key="tutorial.jump">Jump with the up arrow; press it again in the air to jump higher</text>
     <text key="tutorial.drop">Climb onto a platform and drop down through it with the down arrow</text>
     <text key="tutorial.bubble">Blow a bubble with the circle button{keys}</text>
     <text key="tutorial.trap">Hit an enemy with a bubble to trap it</text>
@@ -89,12 +92,17 @@
     <text key="menu.continue">Continue (level {level})</text>
     <text key="menu.continue_tutorial">Continue (tutorial)</text>
     <text key="play.title">New game</text>
-    <text key="play.start">Start (level {level})</text>
+    <text key="play.start">Start</text>
     <text key="play.difficulty">Difficulty: {value}</text>
     <text key="difficulty.easy">Easy</text>
     <text key="difficulty.normal">Medium</text>
     <text key="difficulty.hard">Hard</text>
     <text key="common.back">Back</text>
+    <text key="difficulty_short.easy">E</text>
+    <text key="difficulty_short.normal">M</text>
+    <text key="difficulty_short.hard">H</text>
+    <text key="win.heart">+1 heart!</text>
+    <text key="play.level">Level {level}</text>
   </language>
   <language code="fr" name="Français" flag="fr">
     <text key="menu.subtitle">Piégez les ennemis dans des bulles</text>
@@ -107,7 +115,6 @@
     <text key="scores.level">N{level}</text>
     <text key="hud.score">Points {score}</text>
     <text key="hud.level">Niveau {level}</text>
-    <text key="hud.lives">Vies {lives}</text>
     <text key="star.kill_all">Éliminez tous les ennemis pour terminer le niveau</text>
     <text key="win.title">Niveau {level} terminé</text>
     <text key="win.game">Vous avez gagné la partie !</text>
@@ -124,7 +131,7 @@
     <text key="win.next">Vous êtes prêt pour le niveau 1</text>
     <text key="tutorial.safe">Tutoriel : ici, les ennemis ne vous blessent pas</text>
     <text key="tutorial.move">Déplacez-vous avec les flèches gauche et droite</text>
-    <text key="tutorial.jump">Sautez avec la flèche vers le haut</text>
+    <text key="tutorial.jump">Sautez avec la flèche vers le haut ; appuyez à nouveau en l'air pour sauter plus haut</text>
     <text key="tutorial.drop">Montez sur une plateforme et descendez-en avec la flèche vers le bas</text>
     <text key="tutorial.bubble">Lancez une bulle avec le bouton rond{keys}</text>
     <text key="tutorial.trap">Touchez un ennemi avec une bulle pour le piéger</text>
@@ -134,11 +141,16 @@
     <text key="menu.continue">Continuer (niveau {level})</text>
     <text key="menu.continue_tutorial">Continuer (tutoriel)</text>
     <text key="play.title">Nouvelle partie</text>
-    <text key="play.start">Commencer (niveau {level})</text>
+    <text key="play.start">Commencer</text>
     <text key="play.difficulty">Difficulté : {value}</text>
     <text key="difficulty.easy">Facile</text>
     <text key="difficulty.normal">Moyen</text>
     <text key="difficulty.hard">Difficile</text>
     <text key="common.back">Retour</text>
+    <text key="difficulty_short.easy">F</text>
+    <text key="difficulty_short.normal">M</text>
+    <text key="difficulty_short.hard">D</text>
+    <text key="win.heart">+1 cœur !</text>
+    <text key="play.level">Niveau {level}</text>
   </language>
 </translations>

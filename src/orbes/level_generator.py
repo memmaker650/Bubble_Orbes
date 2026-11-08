@@ -10,6 +10,7 @@ regenerarlos todos desde la plantilla, perdiendo esos cambios::
     python -m orbes.level_generator --force
 """
 
+import random
 import sys
 
 import json
@@ -39,6 +40,60 @@ TEMPLATE = [
 ]
 EMPTY = " " * 9
 
+# Nivel alto (32 filas = 2 pantallas): se empieza abajo y se sube con scroll vertical.
+# Plataformas cada 3 filas alternando centro (columnas 2-6) y laterales (0-2 y 6-8); se pasa
+# de unas a otras por las columnas 2 y 6. Los ladrillos (L) sirven de parapeto: bloquean el
+# paso, la vista de los enemigos, la lengua, el láser y las burbujas.
+TALL_LEVEL = [
+    "    S    ",
+    "  B L E  ",
+    "  =====  ",
+    "         ",
+    "E       L",
+    "===   ===",
+    "         ",
+    "    L    ",
+    "  =====  ",
+    "         ",
+    "B       E",
+    "===   ===",
+    "         ",
+    "   L B   ",
+    "  =====  ",
+    "         ",
+    "LE      B",
+    "===   ===",
+    "         ",
+    "  E L    ",
+    "  =====  ",
+    "         ",
+    "E       B",
+    "===   ===",
+    "         ",
+    "    L    ",
+    "  =====  ",
+    "         ",
+    "         ",
+    "===   ===",
+    "         ",
+    "    P    ",
+]
+
+
+# --- Niveles procedurales (5 a 20) ---
+# Plataformas centrales y laterales: todas incluyen las columnas 2 y 6, por donde se pasa de
+# unas a otras (y que nunca se tapan con ladrillos), así que siempre se puede subir.
+CENTER_PLATFORMS = ("  =====  ", " ======= ", "  == ==  ")
+SIDE_PLATFORMS = ("===   ===", "=== = ===", "==== ====")
+TOP_PLATFORMS = ("  =====  ", " ======= ")     # la de la estrella: sin hueco en el centro
+PATH_COLS = (2, 6)
+FIRST_GENERATED, LAST_GENERATED = 5, 20
+
+
+def _progress(number):
+    """0 en el primer nivel generado, 1 en el último."""
+    return (number - FIRST_GENERATED) / (LAST_GENERATED - FIRST_GENERATED)
+
 
 class LevelGenerator:
     """Crea niveles a partir de una plantilla con huecos ({r3}, {r12}, {m}) y los guarda en JSON."""
@@ -65,7 +120,72 @@ class LevelGenerator:
             self.make(1, level1),
             self.make(2, self.build_map(r3="   E B   ", m="B")),            # 3 rojos + 2 azules
             self.make(3, self.build_map(r3="   B B   ", r12="E       B")),  # 4 rojos + 3 azules
-        ]
+            self.make(4, self.tall_map(), name="La torre"),               # alto, con ladrillos
+        ] + [self.make(n, self.generated_map(n)) for n in range(FIRST_GENERATED, LAST_GENERATED + 1)]
+
+    def generated_map(self, number) -> list[str]:
+        """Nivel procedural: más alto, con más enemigos y más láseres según avanza; con una
+        cantidad variable de ladrillos protectores. Siempre igual para el mismo número."""
+        rng = random.Random(number * 7919)
+        k = _progress(number)
+        rows = 22 + 3 * (number - FIRST_GENERATED)        # 22 ... 67 filas
+        grid = [[" "] * 9 for _ in range(rows)]
+        grid[0][4] = "S"                                   # estrella arriba del todo
+        grid[rows - 1][4] = "P"                            # el jugador empieza abajo
+
+        # Plataformas cada 3 filas desde el suelo; la de más arriba (fila 2..4), central.
+        plat_rows = list(range(rows - 3, 1, -3))
+        top = plat_rows[-1]
+        for r in plat_rows:
+            center = ((top - r) // 3) % 2 == 0            # alternan desde arriba: centro, lado...
+            if r == top:
+                pattern = rng.choice(TOP_PLATFORMS)
+            else:
+                pattern = rng.choice(CENTER_PLATFORMS if center else SIDE_PLATFORMS)
+            grid[r] = list(pattern)
+
+        # Huecos encima de las plataformas (donde se apoyan enemigos y ladrillos)
+        spots = [(r - 1, c) for r in plat_rows for c in range(9) if grid[r][c] == "="]
+        spots = [(r, c) for r, c in spots if r >= 1 and r != rows - 1 and grid[r][c] == " "]
+        rng.shuffle(spots)
+
+        # Ladrillos: cantidad variable (algunos niveles con muchos, otros con pocos), con
+        # tendencia a menos en los niveles finales. Nunca en las columnas de paso ni junto a
+        # la estrella.
+        many = rng.random() < 0.5
+        share = (0.30 if many else 0.12) * (1.0 - 0.5 * k)
+        n_bricks = max(1, round(len(plat_rows) * 3 * share))
+        bricks = [(r, c) for r, c in spots
+                  if c not in PATH_COLS and not (r == top - 1 and 3 <= c <= 5)][:n_bricks]
+        for r, c in bricks:
+            grid[r][c] = "L"
+
+        # Enemigos: cada vez más, y más azules (láser)
+        free = [(r, c) for r, c in spots if (r, c) not in bricks and r < rows - 4]
+        n_enemies = min(len(free), round(7 + 18 * k))
+        laser_share = 0.35 + 0.25 * k
+        for r, c in free[:n_enemies]:
+            grid[r][c] = "B" if rng.random() < laser_share else "E"
+
+        # Botiquines (recuperan un corazón): uno más cada ~15 filas, repartidos en altura.
+        # Se colocan al final para no alterar el resto del nivel.
+        n_medkits = 1 + (rows - 22) // 15                 # 1 ... 4
+        medkits = []
+        for r, c in free[n_enemies:]:
+            if len(medkits) == n_medkits:
+                break
+            if all(abs(r - mr) >= 6 for mr, _ in medkits):
+                medkits.append((r, c))
+                grid[r][c] = "H"
+
+        result = ["".join(row) for row in grid]
+        parse_level(result)
+        return result
+
+    def tall_map(self) -> list[str]:
+        rows = list(TALL_LEVEL)
+        parse_level(rows)
+        return rows
 
     @staticmethod
     def filename(level: LevelDef) -> str:

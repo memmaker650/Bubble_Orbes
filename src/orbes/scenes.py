@@ -13,7 +13,7 @@ from . import savegame
 from .controls import Controls, is_confirm, tap_position
 from . import levels
 from .translations import t
-from .ui import Button, FlagButton, draw_message_box, draw_text
+from .ui import Button, FlagButton, draw_hearts, draw_message_box, draw_text
 from .world import World
 
 IS_IOS = sys.platform == "ios"
@@ -138,28 +138,45 @@ def get_difficulty(db) -> str:
 
 
 class PlayScene(Scene):
-    """Pantalla previa a la partida: Empezar, Dificultad (Fácil/Medio/Difícil) y Tutorial."""
+    """Pantalla previa a la partida: Empezar, Dificultad (Fácil/Medio/Difícil), Tutorial y,
+    para probar niveles, un selector de nivel (S.LEVEL_SELECT)."""
 
     def __init__(self, app):
         super().__init__(app)
         self.title_font = pygame.font.Font(None, 56)
         self.font = pygame.font.Font(None, 38)
         self.small = pygame.font.Font(None, 24)
+        # Niveles que se pueden elegir (sin el tutorial, que tiene su botón)
+        self.choices = [lv.number for lv in levels.LEVELS if not lv.tutorial]
+        self.selected = 1 if 1 in self.choices else self.choices[0]   # siempre empieza en 1
         self._build_buttons()
 
     def _next_level_index(self) -> int:
-        return levels.index_of(max(1, self.app.db.unlocked_level()))
+        """Nivel con el que empieza la partida nueva: el 1, salvo que se elija otro en el
+        selector (para seguir donde se dejó está "Continuar", en el menú principal)."""
+        return levels.index_of(self.selected)
+
+    def _change_level(self, delta):
+        i = (self.choices.index(self.selected) + delta) % len(self.choices)
+        self.selected = self.choices[i]
+        self._build_buttons()
 
     def _build_buttons(self):
-        level = levels.LEVELS[self._next_level_index()]
         difficulty = get_difficulty(self.app.db)
         self.buttons = [
-            ("start", Button((_BTN_X, 250, 260, 60), t("play.start", level=level.number))),
+            ("start", Button((_BTN_X, 250, 260, 60), t("play.start"))),
             ("difficulty", Button((_BTN_X, 330, 260, 60), t(
                 "play.difficulty", value=t(f"difficulty.{difficulty}")))),
             ("tutorial", Button((_BTN_X, 410, 260, 60), t("menu.tutorial"))),
             ("back", Button(((S.LOGICAL_W - 140) // 2, S.LOGICAL_H - 110, 140, 46), t("common.back"))),
         ]
+        if S.LEVEL_SELECT:
+            y = 490
+            self.buttons += [
+                ("level_prev", Button((_BTN_X, y, 52, 60), "")),
+                ("level", Button((_BTN_X + 60, y, 140, 60), t("play.level", level=self.selected))),
+                ("level_next", Button((_BTN_X + 208, y, 52, 60), "")),
+            ]
 
     def _cycle_difficulty(self):
         order = S.DIFFICULTY_ORDER
@@ -182,6 +199,10 @@ class PlayScene(Scene):
             self._cycle_difficulty()
         elif name == "tutorial":
             self._start(0)
+        elif name in ("level_prev", "level_next"):
+            self._change_level(-1 if name == "level_prev" else 1)
+        elif name == "level":
+            self._change_level(1)
         elif name == "back":
             self.app.change_scene(MenuScene(self.app))
 
@@ -197,12 +218,19 @@ class PlayScene(Scene):
                 self._activate("start")
             elif event.key == pygame.K_ESCAPE:
                 self._activate("back")
+            elif S.LEVEL_SELECT and event.key in (pygame.K_LEFT, pygame.K_RIGHT):
+                self._change_level(-1 if event.key == pygame.K_LEFT else 1)
 
     def draw(self, surf):
         surf.fill(S.BG)
         draw_text(surf, self.title_font, t("play.title"), S.BUBBLE, center=(S.LOGICAL_W // 2, 150))
         for name, button in self.buttons:
             button.draw(surf, self.small if name == "back" else self.font)
+            if name in ("level_prev", "level_next"):      # flechas del selector de nivel
+                cx, cy = button.rect.center
+                d = -1 if name == "level_prev" else 1
+                pygame.draw.polygon(surf, S.WHITE, [(cx - d * 7, cy - 11), (cx + d * 9, cy),
+                                                    (cx - d * 7, cy + 11)])
         # Indicador de dificultad: 1, 2 o 3 estrellas bajo el botón
         stars = S.DIFFICULTY_ORDER.index(get_difficulty(self.app.db)) + 1
         box = dict(self.buttons)["difficulty"].rect
@@ -233,8 +261,14 @@ class ScoresScene(Scene):
         for i, row in enumerate(self.rows):
             y = 130 + i * 40
             draw_text(surf, self.font, f"{i + 1:>2}.  {row['player']}", S.WHITE, topleft=(_SCORES_X, y))
-            draw_text(surf, self.font, f"{row['score']}  ({t('scores.level', level=row['level'])})", S.PLATFORM,
-                      topleft=(_SCORES_X + 185, y))
+            # Puntos, letra de la dificultad (F/M/D) y nivel alcanzado
+            r = draw_text(surf, self.font, str(row["score"]), S.PLATFORM, topleft=(_SCORES_X + 165, y))
+            difficulty = row.get("difficulty")
+            if difficulty in S.DIFFICULTIES:
+                r = draw_text(surf, self.font, t(f"difficulty_short.{difficulty}"),
+                              S.DIFFICULTY_COLORS[difficulty], topleft=(r.right + 6, y))
+            draw_text(surf, self.font, f"({t('scores.level', level=row['level'])})", S.PLATFORM,
+                      topleft=(r.right + 8, y))
         draw_text(surf, self.font, t("scores.back"), S.WHITE,
                   center=(S.LOGICAL_W // 2, S.LOGICAL_H - 60))
 
@@ -246,6 +280,8 @@ class GameScene(Scene):
         if world is None:
             world = World(level_index, lives, score, difficulty=difficulty)
         self.world = world
+        self._world_surf = None      # superficie con el nivel entero (alto variable)
+        self._brick_tile = None
         self.controls = Controls()
         self.hud = pygame.font.Font(None, 26)
         self.big = pygame.font.Font(None, 54)
@@ -292,7 +328,6 @@ class GameScene(Scene):
             self.saved = True
             if w.tutorial:
                 self.app.db.set_setting("tutorial_done", 1)
-            self.app.db.unlock_level(w.number + 1, levels.LEVELS[-1].number)
             if w.is_last_level and not w.tutorial:
                 self._save_score()
             self.save_progress()  # queda guardado el inicio del siguiente nivel
@@ -304,7 +339,7 @@ class GameScene(Scene):
 
     def _save_score(self):
         name = self.app.db.get_setting("player_name", t("player.default"))
-        self.app.db.add_score(name, self.world.score, self.world.number)
+        self.app.db.add_score(name, self.world.score, self.world.number, self.world.difficulty)
 
     def _advance(self):
         w = self.world
@@ -322,16 +357,26 @@ class GameScene(Scene):
     def draw(self, surf):
         w = self.world
         surf.fill(S.BG)
-        # El mundo se dibuja en su propia zona, bajo la franja del marcador; lo que quede
-        # fuera (la parte gruesa de los bordes) se recorta solo.
-        field = surf.subsurface((0, S.HUD_H, S.FIELD_W, S.FIELD_H))
+        # El nivel entero se dibuja en su propia superficie (puede ser más alto que la
+        # pantalla) y luego se copia la parte que ve la cámara bajo la franja del marcador.
+        size = (S.FIELD_W, w.height)
+        if self._world_surf is None or self._world_surf.get_size() != size:
+            self._world_surf = pygame.Surface(size)
+        field = self._world_surf
+        field.fill(S.BG)
+        bricks = {tuple(b) for b in w.bricks}
         for s in w.solids:
-            pygame.draw.rect(field, S.SOLID, s)
+            if tuple(s) in bricks:
+                field.blit(self._brick(), s)
+            else:
+                pygame.draw.rect(field, S.SOLID, s)
         for p in w.oneway:
             pygame.draw.rect(field, S.PLATFORM, p, border_radius=5)
 
         if w.star is not None:
             self._draw_star(field, w)
+        for m in w.medkits:
+            self._draw_medkit(field, m)
         for e in w.enemies:
             if e.alive:
                 self._draw_enemy(field, e)
@@ -346,14 +391,19 @@ class GameScene(Scene):
         else:
             self._draw_player(field, w.player)
 
+        camera = round(w.camera_y)
+        surf.blit(field, (0, S.HUD_H), pygame.Rect(0, camera, S.FIELD_W, S.FIELD_H))
+        if w.scrolls:
+            self._draw_scroll_hints(surf, w)
+
         pygame.draw.rect(surf, (10, 12, 26), (0, 0, S.LOGICAL_W, S.HUD_H))
         hud_y = S.HUD_H // 2
         draw_text(surf, self.hud, t("hud.score", score=w.score), S.WHITE,
                   midleft=(S.BORDER, hud_y))
         level = t("hud.tutorial") if w.tutorial else t("hud.level", level=w.number)
         draw_text(surf, self.hud, level, S.WHITE, center=(S.LOGICAL_W // 2, hud_y))
-        draw_text(surf, self.hud, t("hud.lives", lives=w.lives), S.WHITE,
-                  midright=(S.LOGICAL_W - S.BORDER, hud_y))
+        # Vidas: un corazón por cada vida de la dificultad; vacíos los ya gastados
+        draw_hearts(surf, w.lives, w.max_lives, S.LOGICAL_W - S.BORDER, hud_y)
 
         for g in w.ghosts:  # suben por encima del marcador hasta salir de la pantalla
             self._draw_ghost(surf, g)
@@ -371,6 +421,37 @@ class GameScene(Scene):
         if self._overlay_visible():
             self._draw_overlay(surf)
 
+    def _brick(self):
+        """Casilla de ladrillos con llagas de cemento (se dibuja una vez y se reutiliza)."""
+        if self._brick_tile is None:
+            t = S.TILE
+            tile = pygame.Surface((t, t))
+            tile.fill(S.MORTAR)
+            rows, bw = 4, 20
+            bh = t // rows
+            for r in range(rows):
+                offset = 0 if r % 2 == 0 else -bw // 2
+                for c in range(-1, t // bw + 1):
+                    x = offset + c * bw
+                    brick = pygame.Rect(x + 1, r * bh + 1, bw - 2, bh - 2)
+                    shade = S.BRICK if (r + c) % 3 else S.BRICK_DARK
+                    pygame.draw.rect(tile, shade, brick)
+                    pygame.draw.line(tile, (200, 110, 85), brick.topleft,
+                                     (brick.right - 1, brick.top))   # brillo superior
+            pygame.draw.rect(tile, S.BRICK_DARK, tile.get_rect(), 1)
+            self._brick_tile = tile
+        return self._brick_tile
+
+    def _draw_scroll_hints(self, surf, w):
+        """Flechitas que indican que el nivel sigue por arriba o por abajo."""
+        cx = S.LOGICAL_W - S.BORDER - 10
+        if w.camera_y > 4:
+            y = S.HUD_H + 10
+            pygame.draw.polygon(surf, S.WHITE, [(cx - 6, y + 5), (cx, y - 3), (cx + 6, y + 5)])
+        if w.camera_y < w.height - S.FIELD_H - 4:
+            y = S.HUD_H + S.FIELD_H - 10
+            pygame.draw.polygon(surf, S.WHITE, [(cx - 6, y - 5), (cx, y + 3), (cx + 6, y - 5)])
+
     def _draw_tutorial_hint(self, surf, step):
         keys = "" if IS_IOS else " (Z)"
         # En la fila 0, que está libre en el tutorial
@@ -378,6 +459,17 @@ class GameScene(Scene):
                          center=(S.LOGICAL_W // 2, S.HUD_H + S.BORDER + S.TILE // 2),
                          width=S.FIELD_W - 2 * S.BORDER, padding=6, gap=4,
                          accent=S.STAR_YELLOW)
+
+    def _draw_medkit(self, surf, m):
+        """Botiquín: círculo blanco con una cruz roja en el centro, flotando un poco."""
+        bob = round(math.sin(self.t * 3 + m.rect.x * 0.05) * 2)
+        cx, cy = m.rect.centerx, m.rect.centery + bob
+        r = m.rect.width // 2
+        pygame.draw.circle(surf, S.MEDKIT_WHITE, (cx, cy), r)
+        pygame.draw.circle(surf, S.MEDKIT_EDGE, (cx, cy), r, 2)
+        arm, thick = r - 4, 6
+        pygame.draw.rect(surf, S.MEDKIT_CROSS, (cx - thick // 2, cy - arm, thick, arm * 2))
+        pygame.draw.rect(surf, S.MEDKIT_CROSS, (cx - arm, cy - thick // 2, arm * 2, thick))
 
     def _draw_star(self, surf, w):
         star = w.star
@@ -536,7 +628,8 @@ class GameScene(Scene):
         for dx in (-6, 6):
             self._draw_x_eye(layer, (body.centerx + dx, body.y + 12), 4)
         layer.set_alpha(S.GHOST_ALPHA)
-        surf.blit(layer, (g.rect.x - pad_x, S.HUD_H + g.rect.y - pad_y))
+        camera = round(self.world.camera_y)
+        surf.blit(layer, (g.rect.x - pad_x, S.HUD_H + g.rect.y - camera - pad_y))
 
     def _draw_player(self, surf, p):
         if p.invuln > 0 and int(self.t * 10) % 2 == 0:
@@ -659,15 +752,19 @@ class GameScene(Scene):
         rect = e.attack_rect()
         if rect is None:
             return
-        halo = rect.inflate(0, 8)
+        strong = e.super_attack     # súper láser: más grueso y con más brillo
+        halo = rect.inflate(0, 14 if strong else 8)
         layer = pygame.Surface(halo.size, pygame.SRCALPHA)
         flicker = int(40 * abs(math.sin(self.t * 30)))
-        pygame.draw.rect(layer, (*S.LASER, 70 + flicker), layer.get_rect(), border_radius=6)
+        alpha = (110 if strong else 70) + flicker
+        pygame.draw.rect(layer, (*S.LASER, alpha), layer.get_rect(), border_radius=6)
         surf.blit(layer, halo.topleft)
         ey = rect.centery
         for dy in (-3, 3):  # un rayo por cada ojo
-            pygame.draw.line(surf, S.LASER, (rect.left, ey + dy), (rect.right, ey + dy), 3)
-        pygame.draw.line(surf, (255, 200, 200), (rect.left, ey), (rect.right, ey), 1)
+            pygame.draw.line(surf, S.LASER, (rect.left, ey + dy), (rect.right, ey + dy),
+                             5 if strong else 3)
+        pygame.draw.line(surf, (255, 200, 200), (rect.left, ey), (rect.right, ey),
+                         3 if strong else 1)
 
     def _draw_bubble(self, surf, b):
         if b.captured is not None:
@@ -693,6 +790,8 @@ class GameScene(Scene):
                 rows = [(self.title, t("win.title", level=w.number), S.STAR_BLUE)]
                 if w.is_last_level:
                     rows.append((self.font, t("win.game"), S.STAR_YELLOW))
+                if w.hearts_gained > 0:
+                    rows.append((self.font, t("win.heart"), S.HEART))
             rows += [
                 (self.font, t("win.time", time=f"{minutes:02d}:{seconds:02d}"), S.WHITE),
                 (self.font, t("win.points", points=w.level_points), S.WHITE),
