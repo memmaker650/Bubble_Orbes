@@ -44,7 +44,8 @@ DROP_TIME = 0.2                # al pulsar abajo, ignora las plataformas finas e
 
 # --- Enemigos ---
 ENEMY_BASE_SPEED = 55.0
-ENEMY_SPEED_STEP = 12.0        # +velocidad por nivel
+ENEMY_SPEED_STEP = 12.0        # +velocidad por nivel...
+ENEMY_SPEED_MAX_STEPS = 6      # ...hasta el nivel 7; después no aumenta (no superan al jugador)
 ENEMY_ANGRY_FACTOR = 1.6
 
 # Enemigo rojo: lengua
@@ -132,6 +133,8 @@ INVULN_TIME = 2.0
 # jugando (herido); si se vacía del todo, muere. Lengua y láser quitan uno entero y matan.
 DAMAGE_TOUCH = 0.5
 DAMAGE_ATTACK = 1.0
+MEDKIT_HEAL = 1.0              # corazones que recupera un botiquín
+MEDKIT_SIZE = 24
 HURT_INVULN = 1.5              # herido (sin morir): segundos invulnerable parpadeando
 KNOCKBACK_SPEED = 220.0        # empujón al ser herido por contacto...
 KNOCKBACK_TIME = 0.18          # ...durante este tiempo (sin control horizontal)
@@ -169,4 +172,7 @@ BRICK_DARK = (130, 55, 40)
 MORTAR = (178, 170, 156)
 HEART = (235, 60, 80)
 HEART_EMPTY = (150, 110, 125)
+MEDKIT_WHITE = (250, 250, 252)
+MEDKIT_EDGE = (170, 175, 190)
+MEDKIT_CROSS = (225, 35, 45)
 DIFFICULTY_COLORS = {"easy": (110, 210, 130), "normal": (255, 215, 40), "hard": (240, 90, 90)}

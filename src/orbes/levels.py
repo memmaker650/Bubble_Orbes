@@ -6,6 +6,7 @@ tiene más de 16, el nivel es más alto que la pantalla y se hace scroll vertica
 
   #  bloque sólido      =  plataforma (se puede atravesar saltando desde abajo)
   L  ladrillo/cemento: sólido que además sirve de parapeto (bloquea ataques y visión)
+  H  botiquín: recupera un corazón
   P  inicio del jugador E  enemigo rojo (lengua)
   B  enemigo azul (láser por los ojos)
   S  estrella de fin de nivel
@@ -88,6 +89,7 @@ class LevelData:
     bricks: list = field(default_factory=list)   # ladrillos (también están en solids)
     height: int = 0                              # alto del mundo en px (con bordes)
     rows: int = 0
+    medkits: list = field(default_factory=list)  # posiciones (casillas) de los botiquines
 
 
 def border_walls(height=S.FIELD_H) -> list:
@@ -107,7 +109,7 @@ def parse_level(rows) -> LevelData:
         raise ValueError(f"El nivel debe tener al menos {S.ROWS} filas, tiene {len(rows)}")
     height = S.level_height(len(rows))
     solids, oneway, enemies, spawn, star = border_walls(height), [], [], None, None
-    bricks = []
+    bricks, medkits = [], []
     for r, row in enumerate(rows):
         if len(row) != S.COLS:
             raise ValueError(f"Fila {r}: debe tener {S.COLS} columnas")
@@ -127,11 +129,13 @@ def parse_level(rows) -> LevelData:
                 enemies.append((x, y, ch))
             elif ch == "S":
                 star = (x, y)
+            elif ch == "H":
+                medkits.append((x, y))
             elif ch != " ":
                 raise ValueError(f"Fila {r}, columna {c}: carácter desconocido {ch!r}")
     if spawn is None:
         raise ValueError("El nivel no tiene inicio de jugador 'P'")
-    return LevelData(solids, oneway, spawn, enemies, star, bricks, height, len(rows))
+    return LevelData(solids, oneway, spawn, enemies, star, bricks, height, len(rows), medkits)
 
 
 _cache: list | None = None

@@ -43,7 +43,7 @@
     <text key="menu.continue">Continuar (nivel {level})</text>
     <text key="menu.continue_tutorial">Continuar (tutorial)</text>
     <text key="play.title">Nueva partida</text>
-    <text key="play.start">Empezar (nivel {level})</text>
+    <text key="play.start">Empezar</text>
     <text key="play.difficulty">Dificultad: {value}</text>
     <text key="difficulty.easy">Fácil</text>
     <text key="difficulty.normal">Medio</text>
@@ -90,7 +90,7 @@
     <text key="menu.continue">Continue (level {level})</text>
     <text key="menu.continue_tutorial">Continue (tutorial)</text>
     <text key="play.title">New game</text>
-    <text key="play.start">Start (level {level})</text>
+    <text key="play.start">Start</text>
     <text key="play.difficulty">Difficulty: {value}</text>
     <text key="difficulty.easy">Easy</text>
     <text key="difficulty.normal">Medium</text>
@@ -137,7 +137,7 @@
     <text key="menu.continue">Continuer (niveau {level})</text>
     <text key="menu.continue_tutorial">Continuer (tutoriel)</text>
     <text key="play.title">Nouvelle partie</text>
-    <text key="play.start">Commencer (niveau {level})</text>
+    <text key="play.start">Commencer</text>
     <text key="play.difficulty">Difficulté : {value}</text>
     <text key="difficulty.easy">Facile</text>
     <text key="difficulty.normal">Moyen</text>

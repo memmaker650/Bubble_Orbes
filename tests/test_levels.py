@@ -18,7 +18,7 @@ def step(world, n, actions=()):
 # --- JSON y generador ---
 
 def test_levels_are_loaded_from_json_in_order():
-    assert [lv.number for lv in LEVELS] == [0, 1, 2, 3, 4]
+    assert [lv.number for lv in LEVELS] == list(range(21))      # tutorial + 20 niveles
     assert (LEVELS_DIR / "level_00.json").exists()
 
 
@@ -33,7 +33,7 @@ def test_generator_template_produces_valid_levels():
     # lo que sí debe cumplirse es que la plantilla genere niveles válidos.
     gen = LevelGenerator()
     levels = gen.default_levels()
-    assert [lv.number for lv in levels] == [0, 1, 2, 3, 4]
+    assert [lv.number for lv in levels] == list(range(21))
     assert levels[0].rows == levels[1].rows   # el tutorial parte del mapa del nivel 1
 
 

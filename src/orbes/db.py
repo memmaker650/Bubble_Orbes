@@ -1,4 +1,4 @@
-"""Persistencia con sqlite3: puntuaciones, ajustes, progreso y partida guardada."""
+"""Persistencia con sqlite3: puntuaciones, ajustes y partida guardada."""
 
 import json
 import logging
@@ -103,19 +103,6 @@ class Database:
                 "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
                 (key, str(value)),
             )
-
-    # --- progreso (nivel desbloqueado, base 1) ---
-    def unlocked_level(self) -> int:
-        return int(self.get_setting("unlocked_level", 1))
-
-    def unlock_level(self, level: int, max_level: int) -> None:
-        level = min(level, max_level)
-        if level > self.unlocked_level():
-            self.set_setting("unlocked_level", level)
-
-    def reset_progress(self) -> None:
-        """Fin de la partida: la próxima partida nueva vuelve a empezar desde el nivel 1."""
-        self.set_setting("unlocked_level", 1)
 
     # --- partida guardada ---
     def save_game(self, data: dict) -> None:

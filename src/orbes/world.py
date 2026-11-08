@@ -7,7 +7,7 @@ import random
 from pygame import Rect
 
 from . import settings as S
-from .entities import ENEMY_TYPES, Bubble, Ghost, Player, Star
+from .entities import ENEMY_TYPES, Bubble, Ghost, Medkit, Player, Star
 from . import levels
 from .levels import parse_level
 
@@ -87,7 +87,8 @@ class World:
                              data.height - 2 * S.BORDER)
         self.spawn = data.player_spawn
         self.player = Player(*self.spawn)
-        speed = S.ENEMY_BASE_SPEED + S.ENEMY_SPEED_STEP * max(0, self.number - 1)
+        steps = min(max(0, self.number - 1), S.ENEMY_SPEED_MAX_STEPS)
+        speed = S.ENEMY_BASE_SPEED + S.ENEMY_SPEED_STEP * steps
         speed *= self.rules["enemy_speed"]
         self.enemies = [ENEMY_TYPES[kind](x, y, speed, self.rng)
                         for x, y, kind in data.enemy_spawns]
@@ -96,6 +97,7 @@ class World:
             e.attack_delay = self.rules["attack_delay"]
         self.bubbles: list[Bubble] = []
         self.star = Star(*data.star_pos) if data.star_pos else None
+        self.medkits = [Medkit(x, y) for x, y in data.medkits]
         self.camera_y = 0.0
         self.snap_camera()
 
@@ -167,6 +169,7 @@ class World:
                 e.update(dt, self.solids, self.oneway, target, predicted)
         self._update_bubbles(dt)
         self._rescue_escaped()
+        self._check_medkits()
         self._check_player_hit()
         if self.enemies_left == 0:
             self._tutorial_event("clear")
@@ -304,6 +307,23 @@ class World:
             if p.rect.colliderect(e.rect):
                 self.hit_player(S.DAMAGE_TOUCH, source=e)     # contacto
                 return
+
+    @property
+    def max_lives(self) -> float:
+        return self.rules["lives"]
+
+    def _check_medkits(self):
+        """Coger un botiquín recupera un corazón (sin pasar del máximo). Con la vida al
+        completo no se coge: se queda donde está para más adelante."""
+        p = self.player
+        for m in self.medkits:
+            if m.taken or not p.rect.colliderect(m.rect):
+                continue
+            if self.lives >= self.max_lives:
+                continue
+            self.lives = min(self.max_lives, self.lives + S.MEDKIT_HEAL)
+            m.taken = True
+        self.medkits = [m for m in self.medkits if not m.taken]
 
     def hit_player(self, damage, source=None):
         """Resta `damage` corazones. Muere si se ha vaciado algún corazón entero (los ataques

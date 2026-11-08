@@ -91,6 +91,7 @@ def snapshot(w: World) -> dict | None:
         "player": _player_data(w),
         "enemies": enemies,
         "bubbles": bubbles,
+        "medkits": [list(m.cell) for m in w.medkits],    # los que quedan sin coger
     }
 
 
@@ -141,6 +142,9 @@ def restore(data: dict) -> World:
             if e.kind == "laser":
                 e.beam_end = ed.get("beam_end", 0)
 
+        if "medkits" in data:                          # los ya cogidos no vuelven
+            left = {tuple(c) for c in data["medkits"]}
+            w.medkits = [m for m in w.medkits if m.cell in left]
         w.bubbles = []
         for bd in data.get("bubbles", []):
             b = Bubble(0, 0, 1)

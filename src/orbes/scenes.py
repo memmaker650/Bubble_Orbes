@@ -148,13 +148,14 @@ class PlayScene(Scene):
         self._build_buttons()
 
     def _next_level_index(self) -> int:
-        return levels.index_of(max(1, self.app.db.unlocked_level()))
+        """Una partida nueva siempre empieza en el nivel 1 (para seguir donde se dejó está
+        "Continuar", en el menú principal)."""
+        return levels.index_of(1)
 
     def _build_buttons(self):
-        level = levels.LEVELS[self._next_level_index()]
         difficulty = get_difficulty(self.app.db)
         self.buttons = [
-            ("start", Button((_BTN_X, 250, 260, 60), t("play.start", level=level.number))),
+            ("start", Button((_BTN_X, 250, 260, 60), t("play.start"))),
             ("difficulty", Button((_BTN_X, 330, 260, 60), t(
                 "play.difficulty", value=t(f"difficulty.{difficulty}")))),
             ("tutorial", Button((_BTN_X, 410, 260, 60), t("menu.tutorial"))),
@@ -300,7 +301,6 @@ class GameScene(Scene):
             self.saved = True
             if w.tutorial:
                 self.app.db.set_setting("tutorial_done", 1)
-            self.app.db.unlock_level(w.number + 1, levels.LEVELS[-1].number)
             if w.is_last_level and not w.tutorial:
                 self._save_score()
             self.save_progress()  # queda guardado el inicio del siguiente nivel
@@ -309,7 +309,6 @@ class GameScene(Scene):
             self.app.db.clear_game()  # partida perdida: no hay nada que continuar
             if not w.tutorial:
                 self._save_score()
-                self.app.db.reset_progress()  # se vuelve a empezar desde el nivel 1
 
     def _save_score(self):
         name = self.app.db.get_setting("player_name", t("player.default"))
@@ -349,6 +348,8 @@ class GameScene(Scene):
 
         if w.star is not None:
             self._draw_star(field, w)
+        for m in w.medkits:
+            self._draw_medkit(field, m)
         for e in w.enemies:
             if e.alive:
                 self._draw_enemy(field, e)
@@ -431,6 +432,17 @@ class GameScene(Scene):
                          center=(S.LOGICAL_W // 2, S.HUD_H + S.BORDER + S.TILE // 2),
                          width=S.FIELD_W - 2 * S.BORDER, padding=6, gap=4,
                          accent=S.STAR_YELLOW)
+
+    def _draw_medkit(self, surf, m):
+        """Botiquín: círculo blanco con una cruz roja en el centro, flotando un poco."""
+        bob = round(math.sin(self.t * 3 + m.rect.x * 0.05) * 2)
+        cx, cy = m.rect.centerx, m.rect.centery + bob
+        r = m.rect.width // 2
+        pygame.draw.circle(surf, S.MEDKIT_WHITE, (cx, cy), r)
+        pygame.draw.circle(surf, S.MEDKIT_EDGE, (cx, cy), r, 2)
+        arm, thick = r - 4, 6
+        pygame.draw.rect(surf, S.MEDKIT_CROSS, (cx - thick // 2, cy - arm, thick, arm * 2))
+        pygame.draw.rect(surf, S.MEDKIT_CROSS, (cx - arm, cy - thick // 2, arm * 2, thick))
 
     def _draw_star(self, surf, w):
         star = w.star

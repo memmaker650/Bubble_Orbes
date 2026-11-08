@@ -524,3 +524,14 @@ class Ghost:
         """Ya ha salido por el borde superior de la pantalla (por encima del marcador).
         ``camera_y``: altura del mundo que se ve arriba del todo (niveles con scroll)."""
         return self.rect.bottom + 12 < camera_y - S.HUD_H
+
+
+class Medkit:
+    """Botiquín: círculo blanco con una cruz roja. Al tocarlo, recupera un corazón."""
+
+    def __init__(self, x, y):
+        s = S.MEDKIT_SIZE
+        self.rect = Rect(0, 0, s, s)
+        self.rect.center = (x + S.TILE // 2, y + S.TILE // 2)
+        self.cell = (x, y)
+        self.taken = False

@@ -17,16 +17,6 @@ def test_settings_roundtrip_and_overwrite():
     assert db.get_setting("x") == "2"
 
 
-def test_unlock_level_only_increases_and_is_capped():
-    db = Database(":memory:")
-    assert db.unlocked_level() == 1
-    db.unlock_level(3, max_level=3)
-    db.unlock_level(2, max_level=3)
-    assert db.unlocked_level() == 3
-    db.unlock_level(9, max_level=3)
-    assert db.unlocked_level() == 3
-
-
 def test_persists_on_disk(tmp_path):
     path = tmp_path / "orbes.db"
     db = Database(path)
