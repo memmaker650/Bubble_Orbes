@@ -90,6 +90,35 @@ PATH_COLS = (2, 6)
 FIRST_GENERATED, LAST_GENERATED = 5, 20
 
 
+def coin_count(rows) -> int:
+    """2 monedas en niveles de una pantalla; 3 en los más altos."""
+    return 2 if len(rows) <= 20 else 3
+
+
+def place_coins(rows, number) -> list[str]:
+    """Añade monedas (C) al mapa encima de plataformas, repartidas en altura y siempre en
+    huecos libres. Respeta todo lo demás (sirve también para niveles retocados a mano).
+    Siempre las mismas para el mismo mapa y número de nivel. Si ya tiene monedas, no toca."""
+    if any("C" in row for row in rows):
+        return list(rows)
+    rng = random.Random(number * 104729)
+    grid = [list(row) for row in rows]
+    spots = [(r, c) for r in range(len(grid) - 1) for c in range(9)
+             if grid[r][c] == " " and grid[r + 1][c] == "="]
+    rng.shuffle(spots)
+    want = coin_count(rows)
+    gap = max(2, len(rows) // (want + 1) // 2)        # separación mínima en filas
+    chosen = []
+    for r, c in spots:
+        if len(chosen) == want:
+            break
+        if all(abs(r - cr) >= gap for cr, _ in chosen):
+            chosen.append((r, c))
+    for r, c in chosen:
+        grid[r][c] = "C"
+    return ["".join(row) for row in grid]
+
+
 def _progress(number):
     """0 en el primer nivel generado, 1 en el último."""
     return (number - FIRST_GENERATED) / (LAST_GENERATED - FIRST_GENERATED)
@@ -116,11 +145,11 @@ class LevelGenerator:
         """Niveles del juego. El tutorial (0) usa el mismo mapa que el nivel 1."""
         level1 = self.build_map(m="B")                                  # 2 rojos + 1 azul
         return [
-            self.make(0, level1, tutorial=True, enemies_attack=False),
-            self.make(1, level1),
-            self.make(2, self.build_map(r3="   E B   ", m="B")),            # 3 rojos + 2 azules
-            self.make(3, self.build_map(r3="   B B   ", r12="E       B")),  # 4 rojos + 3 azules
-            self.make(4, self.tall_map(), name="La torre"),               # alto, con ladrillos
+            self.make(0, level1, tutorial=True, enemies_attack=False),     # sin monedas
+            self.make(1, place_coins(level1, 1)),
+            self.make(2, place_coins(self.build_map(r3="   E B   ", m="B"), 2)),
+            self.make(3, place_coins(self.build_map(r3="   B B   ", r12="E       B"), 3)),
+            self.make(4, place_coins(self.tall_map(), 4), name="La torre"),
         ] + [self.make(n, self.generated_map(n)) for n in range(FIRST_GENERATED, LAST_GENERATED + 1)]
 
     def generated_map(self, number) -> list[str]:
@@ -178,7 +207,7 @@ class LevelGenerator:
                 medkits.append((r, c))
                 grid[r][c] = "H"
 
-        result = ["".join(row) for row in grid]
+        result = place_coins(["".join(row) for row in grid], number)   # al final: no altera lo demás
         parse_level(result)
         return result
 

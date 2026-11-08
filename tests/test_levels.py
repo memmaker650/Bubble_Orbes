@@ -34,7 +34,8 @@ def test_generator_template_produces_valid_levels():
     gen = LevelGenerator()
     levels = gen.default_levels()
     assert [lv.number for lv in levels] == list(range(21))
-    assert levels[0].rows == levels[1].rows   # el tutorial parte del mapa del nivel 1
+    # el tutorial parte del mapa del nivel 1, pero sin monedas
+    assert levels[0].rows == [row.replace("C", " ") for row in levels[1].rows]
 
 
 def test_export_does_not_overwrite_hand_edited_levels(tmp_path):

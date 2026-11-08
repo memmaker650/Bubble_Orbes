@@ -535,3 +535,14 @@ class Medkit:
         self.rect.center = (x + S.TILE // 2, y + S.TILE // 2)
         self.cell = (x, y)
         self.taken = False
+
+
+class Coin:
+    """Moneda de oro: +100 puntos al cogerla."""
+
+    def __init__(self, x, y):
+        s = S.COIN_SIZE
+        self.rect = Rect(0, 0, s, s)
+        self.rect.center = (x + S.TILE // 2, y + S.TILE // 2)
+        self.cell = (x, y)
+        self.taken = False

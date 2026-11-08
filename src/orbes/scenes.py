@@ -377,6 +377,8 @@ class GameScene(Scene):
             self._draw_star(field, w)
         for m in w.medkits:
             self._draw_medkit(field, m)
+        for c in w.coins:
+            self._draw_coin(field, c)
         for e in w.enemies:
             if e.alive:
                 self._draw_enemy(field, e)
@@ -390,6 +392,9 @@ class GameScene(Scene):
                                    w.player.landed_dead, sink, rise)
         else:
             self._draw_player(field, w.player)
+
+        for x, y, age, text, color in w.popups:       # "+100" de monedas y enemigos
+            self._draw_popup(field, x, y, text, color, 1 - age / S.POPUP_TIME)
 
         camera = round(w.camera_y)
         surf.blit(field, (0, S.HUD_H), pygame.Rect(0, camera, S.FIELD_W, S.FIELD_H))
@@ -459,6 +464,30 @@ class GameScene(Scene):
                          center=(S.LOGICAL_W // 2, S.HUD_H + S.BORDER + S.TILE // 2),
                          width=S.FIELD_W - 2 * S.BORDER, padding=6, gap=4,
                          accent=S.STAR_YELLOW)
+
+    def _draw_popup(self, surf, x, y, text, color, alpha):
+        """Texto de puntos flotante, con un contorno oscuro para que se lea sobre el fondo."""
+        img = self.hud.render(text, True, color)
+        edge = self.hud.render(text, True, (10, 10, 20))
+        layer = pygame.Surface((img.get_width() + 2, img.get_height() + 2), pygame.SRCALPHA)
+        for dx, dy in ((0, 1), (2, 1), (1, 0), (1, 2)):
+            layer.blit(edge, (dx, dy))
+        layer.blit(img, (1, 1))
+        layer.set_alpha(round(255 * alpha))
+        surf.blit(layer, layer.get_rect(midbottom=(x, y)))
+
+    def _draw_coin(self, surf, c):
+        """Moneda de oro girando (se estrecha y ensancha) con un brillo."""
+        spin = abs(math.cos(self.t * 4 + c.rect.x * 0.07))
+        w = max(3, round(c.rect.width * spin))
+        coin = pygame.Rect(0, 0, w, c.rect.height)
+        coin.center = c.rect.center
+        pygame.draw.ellipse(surf, S.GOLD, coin)
+        pygame.draw.ellipse(surf, S.GOLD_DARK, coin, 2)
+        if w > 8:                                         # canto y brillo, de frente
+            inner = coin.inflate(-8 * spin, -8)
+            pygame.draw.ellipse(surf, S.GOLD_DARK, inner, 1)
+            pygame.draw.circle(surf, S.GOLD_SHINE, (coin.centerx - w // 5, coin.y + 5), 2)
 
     def _draw_medkit(self, surf, m):
         """Botiquín: círculo blanco con una cruz roja en el centro, flotando un poco."""
@@ -620,10 +649,7 @@ class GameScene(Scene):
                 wing.midleft = (body.right - 4, body.y + 12 - flap * 4)
             pygame.draw.ellipse(layer, S.WING, wing)
             pygame.draw.ellipse(layer, S.WING_EDGE, wing, 1)
-        if g.kind == "laser":
-            color = (40, 90, 255) if g.angry else S.ENEMY_BLUE
-        else:
-            color = (255, 60, 60) if g.angry else S.ENEMY
+        color = S.enemy_color(g.kind, g.angry)
         pygame.draw.rect(layer, color, body, border_radius=8)
         for dx in (-6, 6):
             self._draw_x_eye(layer, (body.centerx + dx, body.y + 12), 4)
@@ -666,10 +692,7 @@ class GameScene(Scene):
         surf.blit(leaned, leaned.get_rect(midbottom=(x, y + below)))
 
     def _draw_enemy_body(self, surf, e):
-        if e.kind == "laser":
-            color = (40, 90, 255) if e.angry else S.ENEMY_BLUE
-        else:
-            color = (255, 60, 60) if e.angry else S.ENEMY
+        color = S.enemy_color(e.kind, e.angry)
         pygame.draw.rect(surf, color, e.rect, border_radius=8)
         if e.kind == "tongue":
             self._draw_tongue(surf, e)

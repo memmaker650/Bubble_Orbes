@@ -7,7 +7,7 @@ import random
 from pygame import Rect
 
 from . import settings as S
-from .entities import ENEMY_TYPES, Bubble, Ghost, Medkit, Player, Star
+from .entities import ENEMY_TYPES, Bubble, Coin, Ghost, Medkit, Player, Star
 from . import levels
 from .levels import parse_level
 
@@ -99,6 +99,8 @@ class World:
         self.bubbles: list[Bubble] = []
         self.star = Star(*data.star_pos) if data.star_pos else None
         self.medkits = [Medkit(x, y) for x, y in data.medkits]
+        self.coins = [Coin(x, y) for x, y in data.coins]
+        self.popups: list = []       # textos flotantes ("+100"): [x, y, tiempo, texto, color]
         self.camera_y = 0.0
         self.snap_camera()
 
@@ -137,6 +139,7 @@ class World:
     def update(self, dt, actions):
         self.message_timer = max(0.0, self.message_timer - dt)
         self._update_ghosts(dt)
+        self._update_popups(dt)
         self._update_camera(dt)
         if self.state == "dying":
             self._update_dying(dt)
@@ -171,6 +174,7 @@ class World:
         self._update_bubbles(dt)
         self._rescue_escaped()
         self._check_medkits()
+        self._check_coins()
         self._check_player_hit()
         if self.enemies_left == 0:
             self._tutorial_event("clear")
@@ -285,10 +289,13 @@ class World:
 
     def _pop(self, b):
         if b.captured is not None:
-            b.captured.alive = False
-            self.ghosts.append(Ghost(b.captured))
+            e = b.captured
+            e.alive = False
+            self.ghosts.append(Ghost(e))
             self._tutorial_event("pop")
             self.score += S.POINTS_ENEMY
+            # "+100" en el color del enemigo eliminado
+            self.popup(e.rect.centerx, e.rect.top, S.POINTS_ENEMY, S.enemy_color(e.kind, e.angry))
         else:
             self.score += S.POINTS_BUBBLE
         self.bubbles.remove(b)
@@ -332,6 +339,26 @@ class World:
             self.lives = min(self.max_lives, self.lives + S.MEDKIT_HEAL)
             m.taken = True
         self.medkits = [m for m in self.medkits if not m.taken]
+
+    def _check_coins(self):
+        """Coger una moneda da POINTS_COIN puntos."""
+        p = self.player
+        for c in self.coins:
+            if not c.taken and p.rect.colliderect(c.rect):
+                c.taken = True
+                self.score += S.POINTS_COIN
+                self.popup(c.rect.centerx, c.rect.top, S.POINTS_COIN, S.GOLD)
+        self.coins = [c for c in self.coins if not c.taken]
+
+    def popup(self, x, y, points, color):
+        """Texto flotante con los puntos ganados (sube y se desvanece)."""
+        self.popups.append([x, y, 0.0, f"+{points}", color])
+
+    def _update_popups(self, dt):
+        for pop in self.popups:
+            pop[2] += dt
+            pop[1] -= 30 * dt                     # suben
+        self.popups = [pop for pop in self.popups if pop[2] < S.POPUP_TIME]
 
     def hit_player(self, damage, source=None):
         """Resta `damage` corazones. Muere si se ha vaciado algún corazón entero (los ataques

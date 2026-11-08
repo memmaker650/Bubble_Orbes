@@ -354,3 +354,16 @@ def test_level_selector_can_be_hidden(tmp_path):
     finally:
         S.LEVEL_SELECT = True
         app.db.close()
+
+
+def test_coins_and_popup_draw(tmp_path):
+    from orbes.scenes import GameScene
+    app = App(db_path=tmp_path / "t.db")
+    game = GameScene(app, level_index=1)
+    w = game.world
+    w.player.place(w.coins[0].rect.x, w.coins[0].rect.y)
+    for _ in range(10):
+        game.update(1 / 60)
+        game.draw(app.display.surface)
+    assert w.popups or w.score >= 100
+    app.db.close()

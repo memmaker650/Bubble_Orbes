@@ -145,6 +145,9 @@ RESUME_INVULN = 2.0            # invulnerable al retomar una partida guardada
 POINTS_BUBBLE = 10
 POINTS_ENEMY = 100
 POINTS_LEVEL = 500
+POINTS_COIN = 100
+COIN_SIZE = 18
+POPUP_TIME = 0.8              # "+100" flotando al coger una moneda
 
 # --- Colores ---
 BG = (18, 20, 40)
@@ -161,6 +164,15 @@ STONE = (150, 152, 168)
 STONE_DARK = (95, 97, 112)
 ENEMY = (235, 90, 90)
 ENEMY_BLUE = (80, 130, 240)
+ENEMY_ANGRY = (255, 60, 60)
+ENEMY_BLUE_ANGRY = (40, 90, 255)
+
+
+def enemy_color(kind, angry=False):
+    """Color de un enemigo según su tipo ("tongue" rojo, "laser" azul) y si está enfadado."""
+    if kind == "laser":
+        return ENEMY_BLUE_ANGRY if angry else ENEMY_BLUE
+    return ENEMY_ANGRY if angry else ENEMY
 TONGUE = (255, 120, 170)
 LASER = (255, 40, 40)
 BUBBLE = (150, 210, 255)
@@ -178,4 +190,7 @@ HEART_EMPTY = (150, 110, 125)
 MEDKIT_WHITE = (250, 250, 252)
 MEDKIT_EDGE = (170, 175, 190)
 MEDKIT_CROSS = (225, 35, 45)
+GOLD = (255, 200, 40)
+GOLD_DARK = (200, 140, 20)
+GOLD_SHINE = (255, 245, 180)
 DIFFICULTY_COLORS = {"easy": (110, 210, 130), "normal": (255, 215, 40), "hard": (240, 90, 90)}
