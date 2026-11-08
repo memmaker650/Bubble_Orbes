@@ -17,7 +17,7 @@ INTERIOR = Rect(S.BORDER, S.BORDER, S.FIELD_W - 2 * S.BORDER, S.FIELD_H - 2 * S.
 
 # Pasos del tutorial, en orden. Cada uno se completa con el evento del mismo nombre;
 # el texto de ayuda es la clave de traducción "tutorial.<paso>".
-TUTORIAL_STEPS = ("move", "jump", "bubble", "trap", "pop", "clear", "star")
+TUTORIAL_STEPS = ("move", "jump", "drop", "bubble", "trap", "pop", "clear", "star")
 
 
 class World:
@@ -86,6 +86,7 @@ class World:
                         for x, y, kind in data.enemy_spawns]
         for e in self.enemies:
             e.cooldown_factor = self.rules["cooldown"]
+            e.attack_delay = self.rules["attack_delay"]
         self.bubbles: list[Bubble] = []
         self.star = Star(*data.star_pos) if data.star_pos else None
 
@@ -124,14 +125,17 @@ class World:
             self._tutorial_event("move")
         if "jump" in just:
             self._tutorial_event("jump")
+        if p.just_dropped:
+            self._tutorial_event("drop")
         if "bubble" in just and p.shoot_cd <= 0:
             self._shoot()
             self._tutorial_event("bubble")
         # Sin objetivo los enemigos nunca inician un ataque (tutorial)
         target = self.player.rect if self.level.enemies_attack else None
+        predicted = self._predicted_player() if target and self.rules["preempt"] else None
         for e in self.enemies:
             if e.alive:
-                e.update(dt, self.solids, self.oneway, target)
+                e.update(dt, self.solids, self.oneway, target, predicted)
         self._update_bubbles(dt)
         self._rescue_escaped()
         self._check_player_hit()
@@ -139,6 +143,16 @@ class World:
             self._tutorial_event("clear")
         if self.state == "playing":
             self._check_star()
+
+    def _predicted_player(self):
+        """Dónde estará el jugador dentro de PREEMPT_LOOKAHEAD s si sigue igual (para los
+        ataques preventivos): avanza con su velocidad y, si está en el aire, con la gravedad."""
+        p = self.player
+        t = S.PREEMPT_LOOKAHEAD
+        dx = p.vx * t
+        dy = 0.0 if p.on_ground or p.coyote > 0 else p.vy * t + 0.5 * S.GRAVITY * t * t
+        r = p.rect.move(round(dx), round(dy))
+        return r.clamp(INTERIOR)
 
     # --- red de seguridad ---
     def _rescue_escaped(self):

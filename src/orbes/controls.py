@@ -6,16 +6,15 @@ from pygame import Rect
 from . import settings as S
 
 _Y = S.HUD_H + S.FIELD_H + 16
-BUTTONS = {
-    "left": Rect(10, _Y, 90, 90),
-    "right": Rect(106, _Y, 90, 90),
-    "jump": Rect(208, _Y, 80, 90),
-    "bubble": Rect(296, _Y, 78, 90),
-}
+_ORDER = ("left", "right", "down", "jump", "bubble")
+_MARGIN, _GAP = 10, 6
+_W = (S.LOGICAL_W - 2 * _MARGIN - _GAP * (len(_ORDER) - 1)) // len(_ORDER)
+BUTTONS = {name: Rect(_MARGIN + i * (_W + _GAP), _Y, _W, 90) for i, name in enumerate(_ORDER)}
 
 KEYS = {
     "left": (pygame.K_LEFT, pygame.K_a),
     "right": (pygame.K_RIGHT, pygame.K_d),
+    "down": (pygame.K_DOWN, pygame.K_s),
     "jump": (pygame.K_UP, pygame.K_w, pygame.K_SPACE),
     "bubble": (pygame.K_z, pygame.K_x, pygame.K_LSHIFT),
 }
@@ -89,6 +88,8 @@ class Controls:
                 pygame.draw.polygon(layer, col, [(w * .65, h * .25), (w * .3, h * .5), (w * .65, h * .75)])
             elif name == "right":
                 pygame.draw.polygon(layer, col, [(w * .35, h * .25), (w * .7, h * .5), (w * .35, h * .75)])
+            elif name == "down":
+                pygame.draw.polygon(layer, col, [(w * .25, h * .35), (w * .5, h * .7), (w * .75, h * .35)])
             elif name == "jump":
                 pygame.draw.polygon(layer, col, [(w * .25, h * .65), (w * .5, h * .3), (w * .75, h * .65)])
             else:

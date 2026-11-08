@@ -554,3 +554,216 @@ def test_non_final_death_has_no_grave():
         if w.state == "playing":
             break
     assert w.state == "playing" and w.lives == 1
+
+
+# --- definición de las dificultades ---
+
+def _duel_d(cls, gap, difficulty):
+    w = World(1, seed=1, difficulty=difficulty)
+    w.enemies = [e for e in w.enemies if isinstance(e, cls)][:1]
+    e, p = w.enemies[0], w.player
+    p.place(60, FLOOR_Y)
+    e.place(60 + 28 + gap, FLOOR_Y)
+    e.direction = -1
+    e.cooldown = 0.0
+    e.jump_cd = 99
+    e.coyote = S.COYOTE_TIME
+    p.invuln = 99
+    return w, e, p
+
+
+def test_enemy_speed_by_difficulty():
+    base = World(1, seed=1).enemies[0].speed
+    assert World(1, seed=1, difficulty="easy").enemies[0].speed == pytest.approx(base * 0.7)
+    assert World(1, seed=1, difficulty="hard").enemies[0].speed == pytest.approx(base * 1.3)
+
+
+@pytest.mark.parametrize("cls,gap", ((TongueEnemy, 80), (LaserEnemy, 200)))
+def test_easy_attacks_start_0_3_s_later(cls, gap):
+    w, e, p = _duel_d(cls, gap, "normal")
+    step(w, 1)
+    assert e.attack is not None                    # medio: en cuanto lo ve
+
+    w, e, p = _duel_d(cls, gap, "easy")
+    step(w, int(0.3 * 60) - 2)
+    assert e.attack is None                        # fácil: aún no
+    step(w, 4)
+    assert e.attack is not None                    # ...a los 0,3 s
+
+
+def test_easy_delay_resets_if_player_leaves_sight():
+    w, e, p = _duel_d(TongueEnemy, 80, "easy")
+    step(w, 12)                                    # 0,2 s viéndolo
+    p.place(60, FLOOR_Y - 200)                     # se aparta (fuera de su altura)
+    step(w, 1)
+    assert e.sight_t == 0
+    p.place(60, FLOOR_Y)
+    step(w, 12)
+    assert e.attack is None                        # vuelve a contar desde cero
+
+
+def _approaching(difficulty):
+    """El jugador camina hacia un enemigo rojo, todavía fuera del alcance de la lengua."""
+    w, e, p = _duel_d(TongueEnemy, 0, difficulty)
+    p.place(e.rect.left - TongueEnemy.SIGHT - 28 - 40, FLOOR_Y)   # 40 px más allá del alcance
+    step(w, 3)
+    return w, e, p
+
+
+def test_hard_preemptive_attack_when_player_is_about_to_enter_range():
+    w, e, p = _approaching("hard")
+    step(w, 1, {"right"})
+    assert not e.sees(p.rect)                      # aún no está a su alcance...
+    assert e.attack == "tongue"                    # ...pero ya ataca, anticipándose
+
+
+def test_normal_waits_until_player_is_in_range():
+    w, e, p = _approaching("normal")
+    step(w, 1, {"right"})
+    assert e.attack is None
+
+
+def test_hard_preemptive_laser_on_player_dropping_into_line():
+    """El jugador cae hacia la fila del láser: en difícil dispara antes de que llegue."""
+    for difficulty, expected in (("hard", True), ("normal", False)):
+        w, e, p = _duel_d(LaserEnemy, 200, difficulty)
+        p.place(60, FLOOR_Y - 90)                  # por encima de la línea de los ojos
+        p.vy = 200.0
+        p.on_ground, p.coyote = False, 0.0
+        w.player.physics = lambda *a: False        # congelado en el aire para comprobarlo
+        step(w, 1)
+        assert not e.sees(p.rect)
+        assert (e.attack is not None) == expected, difficulty
+
+
+# --- estado de recarga visible ---
+
+def test_laser_pupils_black_while_recharging_red_when_charged():
+    from orbes.scenes import GameScene
+    w, e, p = _duel(LaserEnemy, gap=200)
+    p.invuln = 99
+    assert e.charged and GameScene.laser_pupil_color(e) == S.LASER
+    step(w, int((S.LASER_WINDUP + S.LASER_DURATION) * 60) + 3)   # dispara y empieza a recargar
+    assert e.attack is None and not e.charged
+    assert GameScene.laser_pupil_color(e) == S.BLACK
+    e.place(e.rect.x, FLOOR_Y - 200)          # lejos de su vista para que no vuelva a disparar
+    step(w, int(S.LASER_RECHARGE * 60) + 3)
+    assert e.charged and GameScene.laser_pupil_color(e) == S.LASER
+
+
+def test_tongue_enemy_is_tired_and_slower_while_recharging():
+    w, e, p = _duel(TongueEnemy, gap=80)
+    p.invuln = 99
+    assert not e.tired
+    step(w, int((S.TONGUE_OUT + S.TONGUE_HOLD + S.TONGUE_IN) * 60) + 3)
+    assert e.attack is None and e.tired
+    p.place(60, FLOOR_Y - 300)                # que no le vea mientras medimos
+    step(w, 2)
+    assert abs(e.vx) == pytest.approx(e.speed * S.TIRED_SPEED)
+    step(w, int(S.TONGUE_COOLDOWN * 60) + 3)
+    assert not e.tired
+    step(w, 1)
+    assert abs(e.vx) == pytest.approx(e.speed)
+
+
+def test_enemies_are_not_tired_at_level_start():
+    w = World(1, seed=1)
+    assert not any(e.tired for e in w.enemies)
+    step(w, 120)
+    assert not any(e.tired for e in w.enemies if e.attack is None and e.cooldown == 0)
+
+
+def test_tired_state_survives_save():
+    from orbes import savegame
+    w = World(1, seed=1)
+    e = next(x for x in w.enemies if isinstance(x, TongueEnemy))
+    e.tired, e.cooldown = True, 1.0
+    r = savegame.restore(savegame.snapshot(w))
+    restored = r.enemies[w.enemies.index(e)]
+    assert restored.tired and restored.cooldown == pytest.approx(1.0)
+
+
+# --- bajar de las plataformas con la flecha abajo ---
+
+def _standing_on_platform(row=10, col=4):
+    """Jugador de pie sobre la plataforma fina de esa fila (enemigos fuera de juego)."""
+    w = World(1, seed=1)
+    for e in w.enemies:
+        e.alive = False
+    p = w.player
+    x, top = S.cell_pos(col, row)
+    p.place(x, top - p.rect.height)
+    step(w, 10)
+    assert p.rect.bottom == top
+    return w, p, top
+
+
+def test_down_drops_through_platform_to_the_one_below():
+    w, p, top = _standing_on_platform(10, 4)        # plataforma central de la fila 10
+    step(w, 1, {"down"})
+    for _ in range(120):
+        step(w, 1, {"down"})                          # aunque la mantenga pulsada...
+        if p.on_ground and p.rect.bottom != top:
+            break
+    step(w, 30, {"down"})
+    assert p.rect.bottom > top                        # ha bajado
+    assert p.rect.bottom == S.FLOOR_Y                 # ...hasta el suelo (debajo no hay otra)
+
+
+def test_holding_down_drops_only_one_platform():
+    w, p, top = _standing_on_platform(7, 1)          # plataforma lateral de la fila 7
+    step(w, 1, {"down"})
+    step(w, 120, {"down"})                           # mantenida: no encadena caídas
+    assert p.rect.bottom == S.cell_pos(0, 10)[1] or p.rect.bottom == S.cell_pos(0, 13)[1]
+    landed = p.rect.bottom
+    step(w, 60, {"down"})
+    assert p.rect.bottom == landed
+    step(w, 1)
+    step(w, 1, {"down"})                             # nueva pulsación: baja otra
+    step(w, 120)
+    assert p.rect.bottom > landed
+
+
+def test_down_does_nothing_on_floor_or_solid_block():
+    w = World(1, seed=1)
+    for e in w.enemies:
+        e.alive = False
+    p = w.player
+    step(w, 10)
+    y = p.rect.y
+    step(w, 1, {"down"})
+    step(w, 30)
+    assert p.rect.y == y and p.rect.bottom == S.FLOOR_Y   # el suelo no se atraviesa
+
+    from pygame import Rect
+    block = Rect(*S.cell_pos(4, 14), S.TILE, S.TILE)
+    w.solids.append(block)
+    p.place(block.x + 6, block.top - p.rect.height)
+    step(w, 10)
+    step(w, 1, {"down"})
+    step(w, 30)
+    assert p.rect.bottom == block.top                      # ni los bloques sólidos
+
+
+def test_down_in_the_air_does_nothing_special():
+    w, p, top = _standing_on_platform(10, 4)
+    step(w, 1, {"jump"})
+    step(w, 5)
+    assert not p.on_ground
+    step(w, 1, {"down"})
+    assert p.drop_t == 0
+    for _ in range(120):
+        step(w, 1)
+        if p.on_ground:
+            break
+    assert p.rect.bottom == top                            # vuelve a aterrizar en ella
+
+
+def test_down_key_and_button_exist():
+    import pygame
+    from orbes.controls import BUTTONS, KEYS
+    assert pygame.K_DOWN in KEYS["down"]
+    assert list(BUTTONS) == ["left", "right", "down", "jump", "bubble"]
+    rects = list(BUTTONS.values())
+    assert all(a.right < b.left for a, b in zip(rects, rects[1:]))   # sin solaparse
+    assert rects[-1].right <= S.LOGICAL_W - 5

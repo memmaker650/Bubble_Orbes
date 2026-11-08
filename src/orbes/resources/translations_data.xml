@@ -35,6 +35,7 @@
     <text key="tutorial.safe">Tutorial: aquí los enemigos no te hacen daño</text>
     <text key="tutorial.move">Muévete con las flechas izquierda y derecha</text>
     <text key="tutorial.jump">Salta con la flecha hacia arriba</text>
+    <text key="tutorial.drop">Sube a una plataforma y bájate de ella con la flecha hacia abajo</text>
     <text key="tutorial.bubble">Lanza una burbuja con el botón del círculo{keys}</text>
     <text key="tutorial.trap">Lanza una burbuja contra un enemigo para atraparlo</text>
     <text key="tutorial.pop">Toca la burbuja con el enemigo dentro para reventarla</text>
@@ -79,6 +80,7 @@
     <text key="tutorial.safe">Tutorial: enemies can't hurt you here</text>
     <text key="tutorial.move">Move with the left and right arrows</text>
     <text key="tutorial.jump">Jump with the up arrow</text>
+    <text key="tutorial.drop">Climb onto a platform and drop down through it with the down arrow</text>
     <text key="tutorial.bubble">Blow a bubble with the circle button{keys}</text>
     <text key="tutorial.trap">Hit an enemy with a bubble to trap it</text>
     <text key="tutorial.pop">Touch the bubble with the enemy inside to pop it</text>
@@ -123,6 +125,7 @@
     <text key="tutorial.safe">Tutoriel : ici, les ennemis ne vous blessent pas</text>
     <text key="tutorial.move">Déplacez-vous avec les flèches gauche et droite</text>
     <text key="tutorial.jump">Sautez avec la flèche vers le haut</text>
+    <text key="tutorial.drop">Montez sur une plateforme et descendez-en avec la flèche vers le bas</text>
     <text key="tutorial.bubble">Lancez une bulle avec le bouton rond{keys}</text>
     <text key="tutorial.trap">Touchez un ennemi avec une bulle pour le piéger</text>
     <text key="tutorial.pop">Touchez la bulle qui contient l'ennemi pour l'éclater</text>

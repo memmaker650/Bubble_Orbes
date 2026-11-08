@@ -25,6 +25,7 @@ MAX_FALL = 700.0
 JUMP_V = 640.0                 # ~136 px de salto: llega a plataformas a 3 filas
 PLAYER_SPEED = 170.0
 COYOTE_TIME = 0.08
+DROP_TIME = 0.2                # al pulsar abajo, ignora las plataformas finas este tiempo
 
 # --- Enemigos ---
 ENEMY_BASE_SPEED = 55.0
@@ -37,6 +38,13 @@ TONGUE_OUT = 0.18              # segundos en sacarla
 TONGUE_HOLD = 0.15             # segundos estirada
 TONGUE_IN = 0.2                # segundos en recogerla
 TONGUE_COOLDOWN = 1.5
+TIRED_SPEED = 0.7              # tras sacar la lengua va cansado: un 30 % más lento
+TIRED_TONGUE_LEN = 6.75        # lengua de cansancio: largo mínimo (px)...
+TIRED_TONGUE_PANT = 4.5        # ...más lo que se estira al jadear
+TIRED_MOUTH_ANGLE = 30         # boca abierta (grados) mientras jadea
+TIRED_MOUTH_DEPTH = 15         # profundidad de la boca abierta dentro del cuerpo (px)
+TIRED_LEAN = 10                # inclinación hacia delante al ir cansado (grados)
+MOUTH_INSIDE = (95, 20, 35)
 
 # Enemigo azul: láser por los ojos
 LASER_WINDUP = 0.35            # aviso (ojos brillando) antes de disparar; 0 = sin aviso
@@ -54,14 +62,21 @@ BUBBLE_ARM_TIME = 0.25         # tiempo antes de poder reventarla
 SHOOT_COOLDOWN = 0.3
 
 # --- Dificultad ---
-# "normal" es el juego tal cual (láser 1 s + 4 s de recarga). Los factores multiplican:
-#   enemy_speed -> velocidad de los enemigos
-#   cooldown    -> tiempo de recarga de la lengua y del láser
+# "normal" es el juego tal cual (láser 1 s + 4 s de recarga).
+#   enemy_speed  -> multiplica la velocidad de los enemigos (fácil -30 %, difícil +30 %)
+#   attack_delay -> segundos que el enemigo tiene que verte antes de atacar (fácil +0,3 s)
+#   preempt      -> ataques preventivos: atacan donde vas a estar (difícil)
+#   cooldown     -> multiplica la recarga de la lengua y del láser
+#   lives, bubble_life -> vidas iniciales y segundos que dura un enemigo atrapado
 DIFFICULTIES = {
-    "easy":   {"lives": 5, "enemy_speed": 0.8,  "cooldown": 1.25, "bubble_life": 9.0},
-    "normal": {"lives": 3, "enemy_speed": 1.0,  "cooldown": 1.0,  "bubble_life": 7.0},
-    "hard":   {"lives": 2, "enemy_speed": 1.25, "cooldown": 0.75, "bubble_life": 5.0},
+    "easy":   {"lives": 5, "enemy_speed": 0.7, "attack_delay": 0.3, "preempt": False,
+               "cooldown": 1.25, "bubble_life": 9.0},
+    "normal": {"lives": 3, "enemy_speed": 1.0, "attack_delay": 0.0, "preempt": False,
+               "cooldown": 1.0, "bubble_life": 7.0},
+    "hard":   {"lives": 2, "enemy_speed": 1.3, "attack_delay": 0.0, "preempt": True,
+               "cooldown": 0.75, "bubble_life": 5.0},
 }
+PREEMPT_LOOKAHEAD = 0.4        # difícil: los enemigos anticipan dónde estarás en estos segundos
 DIFFICULTY_ORDER = ("easy", "normal", "hard")
 DEFAULT_DIFFICULTY = "normal"
 

@@ -22,7 +22,7 @@ LEGACY_VERSIONS = {1}
 
 _BODY = ("fx", "fy", "vx", "vy", "on_ground", "coyote")
 _ENEMY = _BODY + ("direction", "state", "alive", "angry", "jump_cd",
-                  "attack", "attack_t", "cooldown")
+                  "attack", "attack_t", "cooldown", "sight_t", "tired")
 _BUBBLE = ("fx", "fy", "vx", "state", "timer", "life", "age")
 
 

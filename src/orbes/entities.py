@@ -18,6 +18,7 @@ class Body:
         self.vy = 0.0
         self.on_ground = False
         self.coyote = 0.0  # pequeño margen para saltar justo tras pisar suelo
+        self.drop_t = 0.0  # > 0: atravesando plataformas finas hacia abajo
 
     def place(self, x, y):
         self.rect.topleft = (int(x), int(y))
@@ -49,6 +50,23 @@ class Body:
         if moved:
             self.fx, self.fy = float(self.rect.x), float(self.rect.y)
         return moved
+
+    def on_oneway(self, solids, oneway) -> bool:
+        """Está de pie sobre una plataforma fina (y no sobre un sólido)."""
+        feet = self.rect.move(0, 1)
+        if any(feet.colliderect(s) for s in solids):
+            return False
+        return any(feet.colliderect(p) and self.rect.bottom == p.top for p in oneway)
+
+    def drop_through(self, solids, oneway) -> bool:
+        """Baja atravesando la plataforma fina sobre la que está. Devuelve True si pudo."""
+        if not self.on_oneway(solids, oneway):
+            return False
+        self.drop_t = S.DROP_TIME
+        self.vy = max(self.vy, 60.0)
+        self.on_ground = False
+        self.coyote = 0.0
+        return True
 
     def physics(self, dt, solids, oneway) -> bool:
         """Mueve el cuerpo. Devuelve True si chocó lateralmente con un muro."""
@@ -83,7 +101,8 @@ class Body:
                     self.rect.top = s.bottom
                 self.vy = 0.0
                 self.fy = float(self.rect.y)
-        if falling:
+        self.drop_t = max(0.0, self.drop_t - dt)
+        if falling and self.drop_t <= 0:
             for p in oneway:
                 if self.rect.colliderect(p) and prev_bottom <= p.top:
                     self.rect.bottom = p.top
@@ -104,6 +123,7 @@ class Player(Body):
         self.facing = 1
         self.shoot_cd = 0.0
         self.invuln = 0.0
+        self.just_dropped = False  # este frame ha bajado de una plataforma
         self.dead = False          # animación de muerte en curso
         self.landed_dead = False   # ya ha caído tumbado al suelo
 
@@ -118,7 +138,11 @@ class Player(Body):
         self.vx = dirx * S.PLAYER_SPEED
         if dirx:
             self.facing = dirx
-        if "jump" in just and self.coyote > 0:
+        self.just_dropped = False
+        if "down" in just and "jump" not in just:
+            # bajar de la plataforma (una por pulsación)
+            self.just_dropped = self.drop_through(solids, oneway)
+        elif "jump" in just and self.coyote > 0:
             self.vy = -S.JUMP_V
             self.coyote = 0.0
         self.physics(dt, solids, oneway)
@@ -150,6 +174,9 @@ class Enemy(Body):
         self.attack_t = 0.0      # tiempo en la fase actual
         self.cooldown = rng.uniform(0.5, 1.5)
         self.cooldown_factor = 1.0   # lo ajusta la dificultad
+        self.attack_delay = 0.0      # fácil: tiene que verte un rato antes de atacar
+        self.sight_t = 0.0           # tiempo seguido viendo al jugador
+        self.tired = False           # cansado tras atacar (enemigo de la lengua)
 
     @property
     def attacking(self) -> bool:
@@ -159,6 +186,7 @@ class Enemy(Body):
         self.state = "trapped"
         self.vx = self.vy = 0.0
         self.attack = None
+        self.tired = False
 
     def release(self):
         """Se escapa de la burbuja: vuelve a caminar, enfadado."""
@@ -174,14 +202,24 @@ class Enemy(Body):
         dx = target.centerx - self.rect.centerx
         return dx * self.direction > 0 and abs(dx) <= self.SIGHT
 
-    def update(self, dt, solids, oneway, target=None):
+    def update(self, dt, solids, oneway, target=None, predicted=None):
+        """``target``: rectángulo del jugador (None = no ataca, p. ej. en el tutorial).
+        ``predicted``: dónde estará el jugador en breve (ataques preventivos, difícil)."""
         if self.state != "walk":
             return
         self.cooldown = max(0.0, self.cooldown - dt)
-        if self.attack is None and self.cooldown <= 0 and self.coyote > 0 \
-                and target is not None and self.sees(target):
-            self.attack_t = 0.0
-            self._start_attack(solids)
+        if self.cooldown <= 0:
+            self.tired = False       # ya se ha recuperado
+        seen = target is not None and (
+            self.sees(target) or (predicted is not None and self.sees(predicted)))
+        if self.attack is None and self.cooldown <= 0 and self.coyote > 0 and seen:
+            self.sight_t += dt
+            if self.sight_t >= self.attack_delay - 1e-9:
+                self.sight_t = 0.0
+                self.attack_t = 0.0
+                self._start_attack(solids)
+        elif not seen:
+            self.sight_t = 0.0
         if self.attack is not None:
             self.vx = 0.0  # quieto mientras ataca
             self.attack_t += dt
@@ -189,6 +227,8 @@ class Enemy(Body):
             self.physics(dt, solids, oneway)
             return
         speed = self.speed * (S.ENEMY_ANGRY_FACTOR if self.angry else 1.0)
+        if self.tired:
+            speed *= S.TIRED_SPEED
         self.vx = self.direction * speed
         self.jump_cd -= dt
         if self.jump_cd <= 0 and self.coyote > 0:
@@ -226,6 +266,7 @@ class TongueEnemy(Enemy):
     def _attack_step(self, solids):
         if self.attack_t >= S.TONGUE_OUT + S.TONGUE_HOLD + S.TONGUE_IN:
             self._end_attack(S.TONGUE_COOLDOWN)
+            self.tired = True        # mientras recarga va cansado, con la lengua fuera
 
     @property
     def tongue_length(self) -> float:
@@ -266,11 +307,6 @@ class LaserEnemy(Enemy):
     @property
     def charged(self) -> bool:
         return self.cooldown <= 0
-
-    @property
-    def charge(self) -> float:
-        """0 = recién disparado, 1 = energía completa."""
-        return 1.0 - self.cooldown / (S.LASER_RECHARGE * self.cooldown_factor)
 
     def _start_attack(self, solids):
         self.attack = "windup" if S.LASER_WINDUP > 0 else "fire"

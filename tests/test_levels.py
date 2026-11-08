@@ -97,6 +97,15 @@ def test_tutorial_guides_through_steps():
     assert w.tutorial_step == "jump"
     step(w, 1)
     step(w, 1, {"jump"})
+    assert w.tutorial_step == "drop"
+    step(w, 60)
+    step(w, 1, {"down"})                     # en el suelo no cuenta: no hay nada que bajar
+    assert w.tutorial_step == "drop"
+    # De pie en una plataforma fina (la primera que encuentre en el mapa del tutorial)
+    plat = w.oneway[0]
+    w.player.place(plat.x + 6, plat.top - w.player.rect.height)
+    step(w, 10)
+    step(w, 1, {"down"})
     assert w.tutorial_step == "bubble"
     step(w, 40)
     step(w, 1, {"bubble"})
@@ -111,6 +120,7 @@ def test_tutorial_guides_through_steps():
     step(w, 1)
     assert w.state == "won" and w.tutorial_step is None
     assert TUTORIAL_STEPS[-1] == "star"
+    assert TUTORIAL_STEPS.index("drop") == TUTORIAL_STEPS.index("jump") + 1
 
 
 def test_normal_level_has_no_tutorial():

@@ -547,6 +547,32 @@ class GameScene(Scene):
         pygame.draw.circle(surf, S.BLACK, (ex + p.facing * 2, p.rect.y + 12), 2)
 
     def _draw_enemy(self, surf, e):
+        if e.kind == "tongue" and e.tired and not e.attacking:
+            self._draw_enemy_leaning(surf, e)
+            return
+        self._draw_enemy_body(surf, e)
+
+    def _draw_enemy_leaning(self, surf, e):
+        """Cansado: se dibuja en una capa aparte y se inclina hacia delante (hacia donde
+        camina), girando sobre los pies para que siga apoyado en el suelo."""
+        pad = 16
+        layer = pygame.Surface((e.rect.width + 2 * pad, e.rect.height + 2 * pad), pygame.SRCALPHA)
+        real = e.rect.topleft
+        e.rect.topleft = (pad, pad)          # dibujar en coordenadas de la capa
+        try:
+            self._draw_enemy_body(layer, e)
+            feet = e.rect.midbottom
+        finally:
+            e.rect.topleft = real
+        # Recortar un poco por debajo de los pies (sitio para la punta de la lengua) para que
+        # el giro sea, aproximadamente, sobre ellos
+        below = 4
+        layer = layer.subsurface((0, 0, layer.get_width(), feet[1] + below)).copy()
+        leaned = pygame.transform.rotozoom(layer, -e.direction * S.TIRED_LEAN, 1.0)  # suavizado
+        x, y = e.rect.midbottom
+        surf.blit(leaned, leaned.get_rect(midbottom=(x, y + below)))
+
+    def _draw_enemy_body(self, surf, e):
         if e.kind == "laser":
             color = (40, 90, 255) if e.angry else S.ENEMY_BLUE
         else:
@@ -570,21 +596,64 @@ class GameScene(Scene):
         rect = e.attack_rect()
         mx, my = e.mouth()
         if rect is None:
-            pygame.draw.line(surf, S.BLACK, (mx - e.direction * 8, my), (mx - e.direction * 2, my), 2)
+            if e.tired:
+                self._draw_open_mouth(surf, e, mx, my)
+                self._draw_tired_tongue(surf, e, mx, my)
+                pts = self._open_mouth_points(e, mx, my)
+                pygame.draw.line(surf, S.BLACK, pts[0], pts[1], 2)  # labio de arriba, sobre la lengua
+            else:
+                pygame.draw.line(surf, S.BLACK, (mx - e.direction * 8, my),
+                                 (mx - e.direction * 2, my), 2)
             return
         tip = (mx + e.direction * int(e.tongue_length), my)
         pygame.draw.line(surf, S.TONGUE, (mx - e.direction * 4, my), tip, 6)
         pygame.draw.circle(surf, S.TONGUE, tip, 7)
         pygame.draw.circle(surf, (200, 60, 110), tip, 7, 2)
 
+    @staticmethod
+    def _open_mouth_points(e, mx, my):
+        """Cuña de la boca abierta: vértice dentro del cuerpo y abertura de
+        TIRED_MOUTH_ANGLE grados en el borde, hacia donde mira."""
+        depth = S.TIRED_MOUTH_DEPTH
+        half = depth * math.tan(math.radians(S.TIRED_MOUTH_ANGLE / 2))
+        vertex = (mx - e.direction * depth, my)
+        return [vertex, (mx, my - half), (mx, my + half)]
+
+    def _draw_open_mouth(self, surf, e, mx, my):
+        pts = self._open_mouth_points(e, mx, my)
+        pygame.draw.polygon(surf, S.MOUTH_INSIDE, pts)
+        pygame.draw.lines(surf, S.BLACK, False, [pts[1], pts[0], pts[2]], 2)  # labios
+
+    def _draw_tired_tongue(self, surf, e, mx, my):
+        """Cansado: la lengua nace dentro de la boca abierta, sale por la abertura y se curva
+        cayendo hacia abajo; se estira y encoge al jadear."""
+        pant = abs(math.sin(self.t * 12 + e.rect.x * 0.1))     # cada enemigo a su ritmo
+        length = S.TIRED_TONGUE_LEN + S.TIRED_TONGUE_PANT * pant
+        d = e.direction
+        # Curva de Bézier: base en la boca -> sale hacia fuera -> cae hacia abajo
+        p0 = (mx - d * S.TIRED_MOUTH_DEPTH * 0.45, my + 1.5)   # dentro de la boca, mitad baja
+        p1 = (p0[0] + d * length * 0.95, p0[1] - length * 0.05)
+        p2 = (p0[0] + d * length * 0.85, p0[1] + length * 0.95)
+        points = []
+        for i in range(13):
+            u = i / 12
+            points.append(((1 - u) ** 2 * p0[0] + 2 * (1 - u) * u * p1[0] + u * u * p2[0],
+                           (1 - u) ** 2 * p0[1] + 2 * (1 - u) * u * p1[1] + u * u * p2[1]))
+        for i, pt in enumerate(points):                        # se ensancha hacia la punta
+            pygame.draw.circle(surf, S.TONGUE, pt, 2.5 + 1.5 * i / 12)
+        pygame.draw.lines(surf, (200, 60, 110), False, points[1:10], 1)  # surco central
+
+    @staticmethod
+    def laser_pupil_color(e):
+        """Pupilas del enemigo azul: negras mientras recarga, rojas cuando está cargado."""
+        return S.LASER if e.charged else S.BLACK
+
     def _draw_laser_eye(self, surf, e, pupil):
-        if e.attack is not None:  # cargando o disparando: ojos al rojo vivo
+        if e.attack is not None:  # a punto de disparar o disparando: ojos al rojo vivo
             glow = 3 + int(2 * abs(math.sin(self.t * 20)))
             pygame.draw.circle(surf, S.LASER, pupil, glow)
-        else:  # el color indica la energía: gris (vacío) -> rojo (cargado)
-            k = max(0.0, min(1.0, e.charge))
-            col = tuple(int(90 + (c - 90) * k) for c in S.LASER)
-            pygame.draw.circle(surf, col, pupil, 2)
+        else:
+            pygame.draw.circle(surf, self.laser_pupil_color(e), pupil, 2)
 
     def _draw_laser(self, surf, e):
         rect = e.attack_rect()
