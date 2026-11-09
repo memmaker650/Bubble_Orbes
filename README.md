@@ -11,11 +11,14 @@ Python + **pygame-ce**, **sqlite3** para puntuaciones/ajustes/progreso y **Brief
 |---------------|--------------------------|----------------------|
 | Mover         | ← → / A D                | botones ◀ ▶          |
 | Saltar        | ↑ / W / Espacio          | botón ▲              |
+| Bajar de una plataforma | ↓ / S          | botón ▼              |
 | Lanzar orbe   | Z / X / Shift izq.       | botón ○              |
 | Menú / volver | Enter / Esc              | tocar                |
 
-Los saltos atraviesan las plataformas desde abajo. Si dejas un orbe con enemigo demasiado tiempo,
-el enemigo se libera enfadado.
+Una pulsación de salto sube media altura; una segunda pulsación en el aire completa el salto (hace
+falta para subir de una plataforma a la siguiente). Los saltos atraviesan las plataformas finas
+desde abajo y la flecha abajo las atraviesa hacia abajo. Si dejas un orbe con enemigo demasiado
+tiempo, el enemigo se libera enfadado.
 
 ## Estructura
 
@@ -23,7 +26,9 @@ el enemigo se libera enfadado.
 pyproject.toml          Configuración de Briefcase y pytest
 src/orbes/
   settings.py           Constantes (pantalla lógica 360x760, física, reglas, colores)
-  levels.py             Niveles como mapas de texto (# sólido, = plataforma, P jugador, E enemigo)
+  levels.py             Carga y valida los niveles JSON (ver "Niveles")
+  level_generator.py    Generador de niveles (plantillas, niveles procedurales 5-20)
+  resources/levels/     Un JSON por nivel
   entities.py           Body (física), Player, Enemy, Bubble — lógica pura
   world.py              Reglas: disparo, captura, puntos, vidas, victoria/derrota — sin dibujo
   db.py                 sqlite3: puntuaciones, ajustes, nivel desbloqueado (migraciones con user_version)
@@ -35,7 +40,60 @@ tests/                  pytest (base de datos, mundo/física y arranque headless
 ```
 
 La lógica (`entities`, `world`, `levels`, `db`) no dibuja nada y solo usa `pygame.Rect`, así que se
-prueba sin ventana. Para añadir niveles basta con añadir un mapa a `LEVELS` en `levels.py`.
+prueba sin ventana. Los niveles son ficheros JSON en `src/orbes/resources/levels/` (ver la sección
+siguiente).
+
+## Niveles (ficheros JSON)
+
+Cada nivel es un fichero `src/orbes/resources/levels/level_NN.json` (se cargan ordenados por
+`number`). Se pueden editar a mano; el juego los valida al arrancar y, si hay un error, dice en qué
+fichero. `python -m orbes.level_generator` crea los que falten **sin sobrescribir** los existentes
+(con `--force` los regenera desde el generador y se pierden los retoques a mano).
+
+```json
+{
+  "number": 5,
+  "name": "Nivel 5",
+  "tutorial": false,
+  "enemies_attack": true,
+  "map": ["    S    ", "         ", "  =====  ", "..."]
+}
+```
+
+| Campo            | Significado                                                              |
+|------------------|--------------------------------------------------------------------------|
+| `number`         | Número del nivel que ve el jugador (0 = tutorial). No se puede repetir.  |
+| `name`           | Nombre informativo.                                                      |
+| `tutorial`       | `true` muestra la guía de pasos del tutorial.                            |
+| `enemies_attack` | `false` = los enemigos no hacen daño (tutorial).                         |
+| `map`            | El mapa, como lista de filas de texto (de arriba abajo).                 |
+
+### Caracteres del mapa
+
+| Carácter | Significado                                                                         |
+|:--------:|-------------------------------------------------------------------------------------|
+| ` `      | Vacío.                                                                              |
+| `#`      | Bloque sólido: no se atraviesa y bloquea ataques y visión.                          |
+| `=`      | Plataforma fina: se atraviesa saltando desde abajo y bajando con la flecha abajo.   |
+| `L`      | Ladrillo/cemento: sólido que sirve de parapeto (bloquea el paso, la vista de los enemigos, la lengua, el láser y las burbujas). |
+| `P`      | Inicio del jugador (uno por nivel, obligatorio).                                    |
+| `S`      | Estrella de fin de nivel: con todos los enemigos eliminados, al tocarla se completa. |
+| `E`      | Enemigo rojo: ataca sacando la lengua.                                              |
+| `B`      | Enemigo azul: ataca con un láser por los ojos.                                      |
+| `H`      | Botiquín: recupera un corazón (no se coge con la vida al completo).                 |
+| `C`      | Moneda de oro: +100 puntos.                                                         |
+
+Reglas del mapa:
+
+- **9 columnas** por fila y **16 filas o más**. Con más de 16 el nivel es más alto que la pantalla
+  y se hace scroll vertical (limitado al alto del mapa).
+- Solo se describe el **interior**: los bordes (finos) se añaden solos alrededor.
+- Enemigos, botiquines y monedas conviene ponerlos justo **encima de una plataforma** (`=`).
+- Un salto completo (doble pulsación) sube unas **3 filas**: las plataformas deben estar como mucho
+  a 3 filas unas de otras para poder subir.
+- El jugador puede empezar **abajo** (la estrella arriba), **arriba del todo** (la estrella abajo
+  del todo) o **a mitad** del nivel (la estrella arriba o abajo). En los niveles 5 a 20 el
+  generador rota esas cuatro disposiciones.
 
 ## Desarrollo
 

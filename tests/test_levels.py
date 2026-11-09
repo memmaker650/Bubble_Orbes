@@ -172,3 +172,23 @@ def test_inner_blocks_are_solid_obstacles():
     data = parse_level(rows)
     block = S.cell_pos(4, 14)
     assert any(s.topleft == block and s.size == (S.TILE, S.TILE) for s in data.solids)
+
+
+def test_readme_documents_every_map_character():
+    """La tabla de caracteres del README coincide con los que acepta el juego."""
+    import re
+    from pathlib import Path
+
+    from orbes.levels import parse_level
+    readme = (Path(__file__).parents[1] / "README.md").read_text(encoding="utf-8")
+    section = readme.split("### Caracteres del mapa", 1)[1].split("Reglas del mapa", 1)[0]
+    documented = set(re.findall(r"^\|\s*`(.)`\s*\|", section, re.M))
+    accepted = set()
+    for ch in "#=LPSEBHC XYZ@0":
+        rows = ["         "] * 15 + ["P   " + (ch if ch != "P" else " ") + "    "]
+        try:
+            parse_level(rows)
+            accepted.add(ch)
+        except ValueError:
+            pass
+    assert documented == accepted, (documented, accepted)

@@ -119,6 +119,72 @@ def place_coins(rows, number) -> list[str]:
     return ["".join(row) for row in grid]
 
 
+# --- Dónde empieza el jugador y dónde está la estrella ---
+# "up": abajo -> estrella arriba     "down": arriba del todo -> estrella abajo del todo
+# "middle_up" / "middle_down": a mitad del nivel -> estrella arriba / abajo
+LAYOUTS = ("up", "down", "middle_up", "middle_down")
+SAFE_ROWS = 4                  # sin enemigos a menos de estas filas del inicio del jugador
+
+
+def layout_for(number) -> str:
+    """Disposición de los niveles generados: rotan las cuatro (5 sube, 6 baja, 7 y 8 desde
+    la mitad...). Los niveles 1-4 empiezan siempre abajo."""
+    if number < FIRST_GENERATED:
+        return "up"
+    return LAYOUTS[(number - FIRST_GENERATED) % len(LAYOUTS)]
+
+
+def set_layout(rows, layout, number) -> list[str]:
+    """Coloca el inicio (P) y la estrella (S) según `layout`, sobre cualquier mapa (también
+    retocado a mano): solo mueve P y S y, si algún enemigo queda pegado al nuevo inicio, lo
+    pasa a otra plataforma. Reglas: si empieza arriba del todo, la estrella está abajo del
+    todo; si empieza a mitad, la estrella puede estar arriba o abajo."""
+    if layout not in LAYOUTS:
+        raise ValueError(f"Disposición desconocida: {layout}")
+    grid = [list(row) for row in rows]
+    n = len(grid)
+    for row in grid:                                   # quitar P y S de donde estén
+        for c, ch in enumerate(row):
+            if ch in "PS":
+                row[c] = " "
+    top, bottom = (0, 4), (n - 1, 4)                   # arriba del todo / suelo, en el centro
+
+    def on_platform(r, c):
+        return 0 <= r < n - 1 and grid[r][c] == " " and grid[r + 1][c] == "="
+
+    if layout == "up":
+        start, star = bottom, top
+    elif layout == "down":
+        start, star = top, bottom
+    else:
+        # A mitad: encima de la plataforma más cercana al centro del nivel (columna libre
+        # lo más centrada posible)
+        candidates = [(abs(r - n // 2), abs(c - 4), r, c)
+                      for r in range(n - 1) for c in range(9) if on_platform(r, c)]
+        if not candidates:
+            raise ValueError("El mapa no tiene plataformas donde empezar a mitad")
+        _, _, r, c = min(candidates)
+        start = (r, c)
+        star = top if layout == "middle_up" else bottom
+    for (r, c), ch in ((start, "P"), (star, "S")):
+        if grid[r][c] not in " PS":                    # el sitio debe estar libre
+            raise ValueError(f"Casilla ocupada para {ch}: fila {r}, columna {c}")
+        grid[r][c] = ch
+
+    # Enemigos demasiado cerca del inicio: a otra plataforma, lejos (siempre los mismos)
+    rng = random.Random(number * 31337)
+    near = [(r, c) for r in range(n) for c in range(9)
+            if grid[r][c] in "EB" and abs(r - start[0]) <= SAFE_ROWS]
+    far = [(r, c) for r in range(n - 1) for c in range(9)
+           if on_platform(r, c) and abs(r - start[0]) > SAFE_ROWS + 2 and (r, c) != star]
+    rng.shuffle(far)
+    for (r, c), (fr, fc) in zip(near, far):
+        grid[fr][fc], grid[r][c] = grid[r][c], " "
+    result = ["".join(row) for row in grid]
+    parse_level(result)
+    return result
+
+
 def _progress(number):
     """0 en el primer nivel generado, 1 en el último."""
     return (number - FIRST_GENERATED) / (LAST_GENERATED - FIRST_GENERATED)
@@ -208,6 +274,7 @@ class LevelGenerator:
                 grid[r][c] = "H"
 
         result = place_coins(["".join(row) for row in grid], number)   # al final: no altera lo demás
+        result = set_layout(result, layout_for(number), number)       # inicio y estrella
         parse_level(result)
         return result
 
