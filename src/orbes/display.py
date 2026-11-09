@@ -8,6 +8,20 @@ from . import settings as S
 
 FINGER_EVENTS = (pygame.FINGERDOWN, pygame.FINGERUP, pygame.FINGERMOTION)
 
+# Formato opaco (sin canal de transparencia) para las superficies de fondo.
+_OPAQUE_MASKS = (0xFF0000, 0x00FF00, 0x0000FF, 0)
+
+
+def opaque_surface(size):
+    """Superficie SIN canal de transparencia.
+
+    Las superficies de fondo (la imagen lógica del juego y la del nivel) deben ser opacas:
+    si heredan el formato de la ventana (que en macOS tiene canal alfa), al pegar encima
+    capas semitransparentes (fantasmas, textos "+100", burbujas...) la transparencia puede
+    colarse en el fondo y, al presentar el fotograma sobre la ventana borrada a negro, verse
+    como cuadros negros."""
+    return pygame.Surface(size, 0, 32, _OPAQUE_MASKS)
+
 
 class Display:
     def __init__(self):
@@ -16,7 +30,7 @@ class Display:
         else:
             size = (S.LOGICAL_W, S.LOGICAL_H)
         self.window = pygame.display.set_mode(size, pygame.RESIZABLE)
-        self.surface = pygame.Surface((S.LOGICAL_W, S.LOGICAL_H))
+        self.surface = opaque_surface((S.LOGICAL_W, S.LOGICAL_H))
         self.scale = 1.0
         self.offset = (0.0, 0.0)
         self._layout()

@@ -11,9 +11,11 @@ from . import settings as S
 from . import translations
 from . import savegame
 from .controls import Controls, is_confirm, tap_position
+from .display import opaque_surface
 from . import levels
 from .translations import t
-from .ui import Button, FlagButton, draw_hearts, draw_message_box, draw_text
+from .ui import (Button, FlagButton, draw_hearts, draw_message_box, draw_text, fade,
+                 transparent_layer)
 from .world import World
 
 IS_IOS = sys.platform == "ios"
@@ -361,7 +363,7 @@ class GameScene(Scene):
         # pantalla) y luego se copia la parte que ve la cámara bajo la franja del marcador.
         size = (S.FIELD_W, w.height)
         if self._world_surf is None or self._world_surf.get_size() != size:
-            self._world_surf = pygame.Surface(size)
+            self._world_surf = opaque_surface(size)   # opaca: ver display.opaque_surface
         field = self._world_surf
         field.fill(S.BG)
         bricks = {tuple(b) for b in w.bricks}
@@ -469,11 +471,11 @@ class GameScene(Scene):
         """Texto de puntos flotante, con un contorno oscuro para que se lea sobre el fondo."""
         img = self.hud.render(text, True, color)
         edge = self.hud.render(text, True, (10, 10, 20))
-        layer = pygame.Surface((img.get_width() + 2, img.get_height() + 2), pygame.SRCALPHA)
+        layer = transparent_layer((img.get_width() + 2, img.get_height() + 2))
         for dx, dy in ((0, 1), (2, 1), (1, 0), (1, 2)):
             layer.blit(edge, (dx, dy))
         layer.blit(img, (1, 1))
-        layer.set_alpha(round(255 * alpha))
+        fade(layer, round(255 * alpha))
         surf.blit(layer, layer.get_rect(midbottom=(x, y)))
 
     def _draw_coin(self, surf, c):
@@ -637,7 +639,7 @@ class GameScene(Scene):
         wing_w = round(18 * S.GHOST_WING_SCALE)
         pad_x, pad_y = wing_w + 2, round(14 * S.GHOST_WING_SCALE)  # sitio para que no se recorten
         w, h = g.rect.size
-        layer = pygame.Surface((w + 2 * pad_x, h + 2 * pad_y), pygame.SRCALPHA)
+        layer = transparent_layer((w + 2 * pad_x, h + 2 * pad_y))
         body = pygame.Rect(pad_x, pad_y, w, h)
         flap = abs(math.sin(g.t * 10))                       # aleteo
         for side in (-1, 1):
@@ -653,7 +655,7 @@ class GameScene(Scene):
         pygame.draw.rect(layer, color, body, border_radius=8)
         for dx in (-6, 6):
             self._draw_x_eye(layer, (body.centerx + dx, body.y + 12), 4)
-        layer.set_alpha(S.GHOST_ALPHA)
+        fade(layer, S.GHOST_ALPHA)            # 60 %, sin set_alpha (ver ui.fade)
         camera = round(self.world.camera_y)
         surf.blit(layer, (g.rect.x - pad_x, S.HUD_H + g.rect.y - camera - pad_y))
 

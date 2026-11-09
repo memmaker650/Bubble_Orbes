@@ -23,6 +23,25 @@ def draw_text(surf, font, text, color, center=None, topleft=None, midleft=None, 
     return rect
 
 
+def transparent_layer(size):
+    """Capa con transparencia por píxel, vacía (totalmente transparente)."""
+    layer = pygame.Surface(size, pygame.SRCALPHA)
+    layer.fill((0, 0, 0, 0))
+    return layer
+
+
+def fade(layer, alpha):
+    """Aplica una opacidad general (0-255) multiplicándola en la transparencia de cada píxel.
+
+    Se usa en lugar de ``set_alpha`` sobre capas con transparencia por píxel: mezclar ambos
+    tipos de transparencia depende del controlador/plataforma y en algunos casos el fondo
+    transparente de la capa se ve como una caja negra."""
+    alpha = max(0, min(255, int(alpha)))
+    if alpha < 255:
+        layer.fill((255, 255, 255, alpha), special_flags=pygame.BLEND_RGBA_MULT)
+    return layer
+
+
 _heart_cache: dict = {}
 
 

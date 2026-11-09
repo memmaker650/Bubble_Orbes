@@ -367,3 +367,48 @@ def test_coins_and_popup_draw(tmp_path):
         game.draw(app.display.surface)
     assert w.popups or w.score >= 100
     app.db.close()
+
+
+def test_no_black_boxes_background_surfaces_stay_opaque(tmp_path):
+    """Regresión: el fantasma (y otras capas semitransparentes) mostraba a veces un cuadro
+    negro. Las superficies de fondo no deben tener canal alfa ni acabar con píxeles
+    transparentes, se dibuje lo que se dibuje encima."""
+    from orbes import settings as S
+    from orbes.entities import Bubble, Ghost, LaserEnemy, TongueEnemy
+    from orbes.scenes import GameScene
+    app = App(db_path=tmp_path / "t.db")
+    game = GameScene(app, level_index=1)
+    w = game.world
+    for e in w.enemies:
+        w.ghosts.append(Ghost(e))
+    w.popup(100, 300, 100, S.ENEMY_BLUE)
+    w.popup(200, 300, 100, S.GOLD)
+    w.bubbles = [Bubble(250, 450, 1)]
+    laser = next(e for e in w.enemies if isinstance(e, LaserEnemy))
+    laser.attack, laser.super_attack = "fire", True
+    laser._aim(w.solids)
+    tongue = next(e for e in w.enemies if isinstance(e, TongueEnemy))
+    tongue.tired = True                                # se dibuja inclinado en otra capa
+    for _ in range(3):
+        game.draw(app.display.surface)
+    for surf in (app.display.surface, game._world_surf):
+        assert surf.get_masks()[3] == 0                # sin canal de transparencia
+        sw, sh = surf.get_size()
+        assert {surf.get_at((x, y))[3] for x in range(0, sw, 4) for y in range(0, sh, 4)} == {255}
+    # Alrededor del fantasma se ve el fondo, no negro
+    g = w.ghosts[0]
+    x, y = g.rect.x - 22, S.HUD_H + g.rect.y - round(w.camera_y) - 16
+    if S.HUD_H < y < S.HUD_H + S.FIELD_H and 0 <= x < S.LOGICAL_W:
+        assert app.display.surface.get_at((x, y))[:3] != (0, 0, 0)
+    app.db.close()
+
+
+def test_fade_keeps_transparent_pixels_transparent():
+    import pygame
+    from orbes.ui import fade, transparent_layer
+    layer = transparent_layer((20, 20))
+    pygame.draw.rect(layer, (200, 50, 50), (5, 5, 10, 10))
+    fade(layer, 153)
+    assert layer.get_at((0, 0))[3] == 0                # el fondo sigue transparente
+    assert layer.get_at((10, 10))[3] == 153            # el dibujo, al 60 %
+    assert layer.get_alpha() in (None, 255)            # sin opacidad general (set_alpha)
