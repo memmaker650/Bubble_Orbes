@@ -412,3 +412,22 @@ def test_fade_keeps_transparent_pixels_transparent():
     assert layer.get_at((0, 0))[3] == 0                # el fondo sigue transparente
     assert layer.get_at((10, 10))[3] == 153            # el dibujo, al 60 %
     assert layer.get_alpha() in (None, 255)            # sin opacidad general (set_alpha)
+
+
+def test_icons_exist_for_every_platform():
+    """Generados con tools/make_icons.py (iOS, macOS, Windows, Linux, Android y ventana)."""
+    from pathlib import Path
+
+    import pygame
+    res = Path(__file__).parents[1] / "src" / "orbes" / "resources"
+    sizes = (20, 29, 40, 58, 60, 76, 80, 87, 120, 152, 167, 180, 1024,   # iOS
+             16, 32, 64, 128, 256, 512)                                   # Linux
+    for size in sizes:
+        img = pygame.image.load(str(res / f"icon-{size}.png"))
+        assert img.get_size() == (size, size)
+    for size in (48, 72, 96, 144, 192):                                   # Android
+        assert (res / f"icon-round-{size}.png").exists()
+        assert (res / f"icon-square-{size}.png").exists()
+    assert (res / "icon.icns").read_bytes()[:4] == b"icns"               # macOS
+    assert (res / "icon.ico").read_bytes()[:4] == b"\x00\x00\x01\x00"    # Windows
+    assert (res / "icon.png").exists() and (res / "icon-macos.png").exists()

@@ -1,5 +1,9 @@
 """Aplicación: bucle principal y gestión de escenas."""
 
+import logging
+import sys
+from pathlib import Path
+
 import pygame
 
 from . import settings as S
@@ -7,6 +11,25 @@ from . import translations
 from .db import Database, default_db_path
 from .display import Display
 from .scenes import MenuScene
+
+log = logging.getLogger(__name__)
+
+RESOURCES = Path(__file__).parent / "resources"
+ICON_PATH = RESOURCES / "icon.png"                 # icono de la ventana (tools/make_icons.py)
+MACOS_ICON_PATH = RESOURCES / "icon-macos.png"     # con esquinas redondeadas y margen de macOS
+
+
+def set_window_icon():
+    """Icono de la ventana / del Dock al ejecutar sin empaquetar (empaquetada, la app usa el
+    icono de Briefcase). En iOS no hay ventana que decorar."""
+    if sys.platform == "ios":
+        return
+    path = MACOS_ICON_PATH if sys.platform == "darwin" else ICON_PATH
+    try:
+        pygame.display.set_icon(pygame.image.load(str(path)))
+    except (FileNotFoundError, pygame.error):
+        log.warning("No se encontró el icono %s (genéralo con tools/make_icons.py)", path)
+
 
 # iOS manda a segundo plano la app y puede cerrarla sin avisar: se guarda en ese momento.
 SAVE_EVENTS = (pygame.APP_WILLENTERBACKGROUND, pygame.APP_TERMINATING)
@@ -16,6 +39,7 @@ class App:
     def __init__(self, db_path=None):
         pygame.init()
         pygame.display.set_caption("Orbes")
+        set_window_icon()                  # antes de crear la ventana
         self.display = Display()
         self.db = Database(db_path or default_db_path())
         translations.load()

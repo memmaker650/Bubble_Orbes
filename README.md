@@ -124,8 +124,13 @@ briefcase run iOS
 ```
 
 Antes de publicar, cambia en `pyproject.toml`: `bundle`, `author`, `author_email`, `url` y el
-nombre en `LICENSE`. Los iconos van en `src/orbes/resources/` (`icon.icns` para macOS y
-`icon-<tamaño>.png` para iOS); sin ellos Briefcase usa uno por defecto y avisa.
+nombre en `LICENSE`.
+
+Los iconos (el personaje con una burbuja saliendo de su boca) se generan con
+`python tools/make_icons.py` en `src/orbes/resources/`: `icon-<tamaño>.png` (iOS y Linux),
+`icon.icns` (macOS), `icon.ico` (Windows), `icon-round-*/icon-square-*` (Android) e `icon.png` /
+`icon-macos.png` (icono de la ventana al ejecutar sin empaquetar). Para cambiar el dibujo, edita
+el script y vuelve a ejecutarlo.
 
 ## Riesgo iOS
 
