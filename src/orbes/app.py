@@ -6,10 +6,12 @@ from pathlib import Path
 
 import pygame
 
+from . import __version__
 from . import settings as S
 from . import translations
 from .db import Database, default_db_path
 from .display import Display
+from .log import setup_logging
 from .scenes import MenuScene
 
 log = logging.getLogger(__name__)
@@ -73,10 +75,18 @@ class App:
                 frames += 1
                 if max_frames is not None and frames >= max_frames:
                     break
+        except Exception:
+            log.exception("Error no controlado en el bucle principal (escena %s)",
+                          type(self.scene).__name__)
+            raise
         finally:
+            log.info("Cerrando la aplicación tras %d frames", frames)
             self.db.close()
             pygame.quit()
 
 
 def main():
+    setup_logging()     # consola + BubbleQuest_AAAAMMDD.log (ver log.py y paths.py)
+    log.info("Iniciando Orbes %s (Python %s, pygame-ce %s, %s)", __version__,
+             sys.version.split()[0], pygame.version.ver, sys.platform)
     App().run()

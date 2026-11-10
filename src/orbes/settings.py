@@ -1,5 +1,9 @@
 """Constantes del juego. Todo en coordenadas lógicas (se escala a la ventana)."""
 
+# --- Carpetas de usuario (logs) ---
+ORG_ID = "com.SkullWithGasMask"   # <base>/com.SkullWithGasMask/BubbleQuest (ver paths.py)
+APP_NAME = "BubbleQuest"
+
 # --- Pantalla lógica (relación ~ iPhone en vertical) ---
 TILE = 40
 COLS = 9                       # casillas interiores del nivel (los bordes no cuentan)
