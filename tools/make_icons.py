@@ -6,7 +6,7 @@ boca, dibujado con la misma paleta que el juego. Se dibuja a 2048 px y se reduce
 Uso (desde la raíz del proyecto):
     python tools/make_icons.py
 
-Escribe en src/orbes/resources/:
+Escribe en src/bubblequest/resources/:
     icon-<tamaño>.png           iOS (20 ... 1024), pantallas de arranque (640, 1280, 1920)
                                 y Linux (16 ... 512)
     icon-round-<tamaño>.png     Android, icono redondo  (48, 72, 96, 144, 192)
@@ -32,9 +32,9 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import pygame  # noqa: E402
 
-from orbes import settings as S  # noqa: E402
+from bubblequest import settings as S  # noqa: E402
 
-OUT = ROOT / "src" / "orbes" / "resources"
+OUT = ROOT / "src" / "bubblequest" / "resources"
 IOS_SIZES = (20, 29, 40, 58, 60, 76, 80, 87, 120, 152, 167, 180, 640, 1024, 1280, 1920)
 LINUX_SIZES = (16, 32, 64, 128, 256, 512)
 ANDROID_SIZES = (48, 72, 96, 144, 192)

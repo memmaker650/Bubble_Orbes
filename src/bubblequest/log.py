@@ -21,7 +21,7 @@ from pathlib import Path
 from . import paths
 
 FORMAT = "%(asctime)s %(levelname)-8s %(name)s: %(message)s"
-PACKAGE = __name__.rpartition(".")[0] or "orbes"
+PACKAGE = __name__.rpartition(".")[0] or "bubblequest"
 FILE_PREFIX = "BubbleQuest_"
 DATE_FORMAT = "%Y%m%d"
 KEEP_FILES = 10                   # al arrancar (y al cambiar de día) quedan los 10 últimos

@@ -1,4 +1,4 @@
-"""Carpeta de datos del juego (logs), según el sistema operativo:
+"""Carpeta de datos del juego (logs y base de datos), según el sistema operativo:
 
   macOS:   ~/Library/Application Support/com.SkullWithGasMask/BubbleQuest
   iOS:     <contenedor de la app>/Library/Application Support/com.SkullWithGasMask/BubbleQuest
@@ -6,7 +6,7 @@
   Windows: %APPDATA%\\com.SkullWithGasMask\\BubbleQuest
   Linux:   ~/.local/share/com.SkullWithGasMask/BubbleQuest  (o $XDG_DATA_HOME)
 
-Dentro: ``log/`` (un fichero por día, ver log.py).
+Dentro: ``log/`` (un fichero por día, ver log.py) y ``BubbleQuest_database.db`` (ver db.py).
 Con la variable de entorno BUBBLEQUEST_DATA se puede usar otra carpeta (p. ej. para pruebas).
 """
 

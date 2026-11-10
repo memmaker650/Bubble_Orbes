@@ -2,8 +2,12 @@
 
 import json
 import logging
+import shutil
 import sqlite3
 from pathlib import Path
+
+from . import paths
+from . import settings as S
 
 SCHEMA_V1 = """
 CREATE TABLE IF NOT EXISTS scores (
@@ -40,17 +44,49 @@ PRAGMA user_version = 3;
 
 log = logging.getLogger(__name__)
 
+DB_NAME = f"{S.APP_NAME}_database.db"      # BubbleQuest_database.db
+LEGACY_DB_NAME = "orbes.db"                 # cuando el juego se llamaba Orbes
 
-def default_db_path() -> Path:
-    """Carpeta de datos de usuario (sandbox en iOS, Application Support en macOS)."""
+
+def _legacy_data_dir() -> Path:
+    """Carpeta donde guardaba los datos la versión anterior (cuando se llamaba Orbes)."""
     try:
         from platformdirs import user_data_dir
 
-        base = Path(user_data_dir("Orbes", "Orbes"))
+        return Path(user_data_dir(S.LEGACY_APP_NAME, S.LEGACY_APP_NAME))
     except Exception:  # platformdirs ausente o plataforma no soportada
-        base = Path.home() / ".orbes"
-    base.mkdir(parents=True, exist_ok=True)
-    return base / "orbes.db"
+        return Path.home() / f".{S.LEGACY_APP_NAME.lower()}"
+
+
+def default_db_path() -> Path:
+    """Base de datos en la carpeta de datos del juego, junto a los logs (ver paths.py):
+    en macOS ``~/Library/Application Support/com.SkullWithGasMask/BubbleQuest``."""
+    base = paths.data_dir()
+    try:
+        base.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        log.error("No se pudo crear la carpeta de datos %s", base, exc_info=True)
+        raise
+    path = base / DB_NAME
+    _migrate_legacy_db(path)
+    return path
+
+
+def _migrate_legacy_db(path: Path) -> None:
+    """Si aún no hay base de datos, copia la de la versión anterior (``…/Orbes/orbes.db``):
+    puntuaciones, partida guardada y ajustes. La antigua se conserva."""
+    if path.exists():
+        return
+    legacy = _legacy_data_dir() / LEGACY_DB_NAME
+    if not legacy.exists():
+        return
+    try:
+        shutil.copy2(legacy, path)
+    except OSError:
+        log.error("No se pudo copiar la base de datos antigua %s a %s", legacy, path,
+                  exc_info=True)
+    else:
+        log.info("Base de datos migrada de %s a %s (la antigua se conserva)", legacy, path)
 
 
 class Database:

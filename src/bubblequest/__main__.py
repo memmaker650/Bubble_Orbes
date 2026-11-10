@@ -1,4 +1,4 @@
-from orbes.app import main
+from bubblequest.app import main
 
 if __name__ == "__main__":
     main()

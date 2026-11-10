@@ -2,10 +2,10 @@
 
 import json
 
-from orbes import settings as S
-from orbes.level_generator import place_coins
-from orbes.levels import LEVELS, index_of, parse_level
-from orbes.world import World
+from bubblequest import settings as S
+from bubblequest.level_generator import place_coins
+from bubblequest.levels import LEVELS, index_of, parse_level
+from bubblequest.world import World
 
 DT = 1 / 60
 
@@ -84,7 +84,7 @@ def test_coin_parsed_from_map():
 
 
 def test_taken_coins_stay_taken_after_save():
-    from orbes import savegame
+    from bubblequest import savegame
     w = World(index_of(5), seed=1)
     for e in w.enemies:
         e.alive = False
@@ -99,7 +99,7 @@ def test_taken_coins_stay_taken_after_save():
 # --- "+100" al matar enemigos, en su color ---
 import pytest  # noqa: E402
 
-from orbes.entities import Bubble, LaserEnemy, TongueEnemy  # noqa: E402
+from bubblequest.entities import Bubble, LaserEnemy, TongueEnemy  # noqa: E402
 
 
 def _pop_enemy(cls, angry=False):

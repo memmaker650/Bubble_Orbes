@@ -3,10 +3,10 @@
 import pytest
 from pygame import Rect
 
-from orbes import settings as S
-from orbes.entities import Bubble, LaserEnemy, TongueEnemy
-from orbes.levels import LEVELS, index_of, parse_level
-from orbes.world import World
+from bubblequest import settings as S
+from bubblequest.entities import Bubble, LaserEnemy, TongueEnemy
+from bubblequest.levels import LEVELS, index_of, parse_level
+from bubblequest.world import World
 
 DT = 1 / 60
 TALL = index_of(4)
@@ -101,7 +101,7 @@ def test_tall_level_can_be_climbed_to_the_star():
 
 
 def test_ghost_disappears_above_the_camera_not_the_level_top():
-    from orbes.entities import Ghost
+    from bubblequest.entities import Ghost
     w = _empty_tall_world()
     e = w.enemies[-1]                                  # uno de abajo
     g = Ghost(e)
@@ -116,7 +116,7 @@ def test_ghost_disappears_above_the_camera_not_the_level_top():
 
 
 def test_save_and_restore_tall_level_keeps_camera_on_player():
-    from orbes import savegame
+    from bubblequest import savegame
     w = _empty_tall_world()
     w.player.place(S.cell_pos(2, 10)[0], S.cell_pos(0, 11)[1] - 32)
     step(w, 120)

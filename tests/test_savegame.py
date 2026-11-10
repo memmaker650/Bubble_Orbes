@@ -4,12 +4,12 @@ import sqlite3
 import pygame
 import pytest
 
-from orbes import settings as S
-from orbes import savegame
-from orbes.app import App
-from orbes.db import Database
-from orbes.scenes import GameScene, MenuScene
-from orbes.world import World
+from bubblequest import settings as S
+from bubblequest import savegame
+from bubblequest.app import App
+from bubblequest.db import Database
+from bubblequest.scenes import GameScene, MenuScene
+from bubblequest.world import World
 
 DT = 1 / 60
 
@@ -45,7 +45,7 @@ def test_db_save_load_clear_and_migration(tmp_path):
     path = tmp_path / "o.db"
     # Base de datos "antigua" (versión 1, sin tabla de partida guardada)
     conn = sqlite3.connect(path)
-    from orbes.db import SCHEMA_V1
+    from bubblequest.db import SCHEMA_V1
     conn.executescript(SCHEMA_V1)
     conn.close()
 
@@ -109,7 +109,7 @@ def test_lost_game_saves_nothing_and_won_level_saves_next():
     r = savegame.restore(data)
     assert (r.number, r.lives, r.score, r.state) == (2, 2, 900, "playing")
 
-    from orbes.levels import LEVELS
+    from bubblequest.levels import LEVELS
     w = World(len(LEVELS) - 1, seed=1)
     w.state = "won"  # último nivel: juego terminado
     assert savegame.snapshot(w) is None
@@ -169,7 +169,7 @@ def test_background_event_saves_without_quitting(tmp_path):
 def test_new_game_and_game_over_discard_save(tmp_path):
     app = App(db_path=tmp_path / "t.db")
     app.db.save_game(savegame.snapshot(World(2, seed=1)))
-    from orbes.scenes import PlayScene
+    from bubblequest.scenes import PlayScene
     PlayScene(app)._activate("start")
     assert not app.db.has_saved_game()
     menu = MenuScene(app)

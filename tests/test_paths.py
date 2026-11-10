@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from orbes import paths
-from orbes.paths import data_dir, log_dir
+from bubblequest import paths
+from bubblequest.paths import data_dir, log_dir
 
 HOME = Path("/Users/memmaker650")
 END = Path("com.SkullWithGasMask") / "BubbleQuest"

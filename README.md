@@ -1,4 +1,4 @@
-# Orbes
+# BubbleQuest
 
 Juego de plataformas arcade en una sola pantalla, en la línea de *Bubble Bobble*: lanzas orbes
 para atrapar enemigos, y los revientas tocándolos antes de que escapen (más rápidos y enfadados).
@@ -24,7 +24,7 @@ tiempo, el enemigo se libera enfadado.
 
 ```
 pyproject.toml          Configuración de Briefcase y pytest
-src/orbes/
+src/bubblequest/
   settings.py           Constantes (pantalla lógica 360x760, física, reglas, colores)
   levels.py             Carga y valida los niveles JSON (ver "Niveles")
   level_generator.py    Generador de niveles (plantillas, niveles procedurales 5-20)
@@ -40,14 +40,14 @@ tests/                  pytest (base de datos, mundo/física y arranque headless
 ```
 
 La lógica (`entities`, `world`, `levels`, `db`) no dibuja nada y solo usa `pygame.Rect`, así que se
-prueba sin ventana. Los niveles son ficheros JSON en `src/orbes/resources/levels/` (ver la sección
+prueba sin ventana. Los niveles son ficheros JSON en `src/bubblequest/resources/levels/` (ver la sección
 siguiente).
 
 ## Niveles (ficheros JSON)
 
-Cada nivel es un fichero `src/orbes/resources/levels/level_NN.json` (se cargan ordenados por
+Cada nivel es un fichero `src/bubblequest/resources/levels/level_NN.json` (se cargan ordenados por
 `number`). Se pueden editar a mano; el juego los valida al arrancar y, si hay un error, dice en qué
-fichero. `python -m orbes.level_generator` crea los que falten **sin sobrescribir** los existentes
+fichero. `python -m bubblequest.level_generator` crea los que falten **sin sobrescribir** los existentes
 (con `--force` los regenera desde el generador y se pierden los retoques a mano).
 
 ```json
@@ -105,8 +105,11 @@ pytest                  # tests (usan el driver de vídeo "dummy", no abren vent
 briefcase dev           # ejecutar el juego en el escritorio
 ```
 
-La base de datos se guarda en la carpeta de datos de usuario (`platformdirs`): en macOS
-`~/Library/Application Support/Orbes/orbes.db`; en iOS, dentro del sandbox de la app.
+La base de datos (`BubbleQuest_database.db`) y los logs (`log/BubbleQuest_AAAAMMDD.log`, se
+conservan los 10 últimos) se guardan en la carpeta de datos del juego: en macOS
+`~/Library/Application Support/com.SkullWithGasMask/BubbleQuest`; en iOS, la misma ruta dentro del
+contenedor privado de la app (ver `paths.py`). La primera vez se copia la base de datos de la
+versión anterior (`~/Library/Application Support/Orbes/orbes.db`), que se conserva.
 
 ## Empaquetar
 
@@ -127,7 +130,7 @@ Antes de publicar, cambia en `pyproject.toml`: `bundle`, `author`, `author_email
 nombre en `LICENSE`.
 
 Los iconos (el personaje con una burbuja saliendo de su boca) se generan con
-`python tools/make_icons.py` en `src/orbes/resources/`: `icon-<tamaño>.png` (iOS y Linux),
+`python tools/make_icons.py` en `src/bubblequest/resources/`: `icon-<tamaño>.png` (iOS y Linux),
 `icon.icns` (macOS), `icon.ico` (Windows), `icon-round-*/icon-square-*` (Android) e `icon.png` /
 `icon-macos.png` (icono de la ventana al ejecutar sin empaquetar). Para cambiar el dibujo, edita
 el script y vuelve a ejecutarlo.

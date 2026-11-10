@@ -3,6 +3,7 @@
 # --- Carpetas de usuario (logs) ---
 ORG_ID = "com.SkullWithGasMask"   # <base>/com.SkullWithGasMask/BubbleQuest (ver paths.py)
 APP_NAME = "BubbleQuest"
+LEGACY_APP_NAME = "Orbes"        # nombre anterior: su base de datos se migra (ver db.py)
 
 # --- Pantalla lógica (relación ~ iPhone en vertical) ---
 TILE = 40

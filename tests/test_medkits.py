@@ -4,9 +4,9 @@ import json
 
 import pytest
 
-from orbes import settings as S
-from orbes.levels import LEVELS, index_of, parse_level
-from orbes.world import World
+from bubblequest import settings as S
+from bubblequest.levels import LEVELS, index_of, parse_level
+from bubblequest.world import World
 
 DT = 1 / 60
 
@@ -83,7 +83,7 @@ def test_medkit_parsed_from_map():
 
 
 def test_taken_medkits_stay_taken_after_save():
-    from orbes import savegame
+    from bubblequest import savegame
     w = World(index_of(20), lives=1, seed=1)
     total = len(w.medkits)
     assert total >= 2

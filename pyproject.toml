@@ -3,19 +3,19 @@ requires = ["briefcase"]
 build-backend = "setuptools.build_meta"
 
 [tool.briefcase]
-project_name = "Orbes Bubbles"
-bundle = "com.example"          # Cambia por tu dominio inverso
+project_name = "BubbleQuest"
+bundle = "com.SkullWithGasMask"   # identificador: com.SkullWithGasMask.bubblequest
 version = "0.1.0"
-url = "https://example.com/orbes"
+url = "https://example.com/bubblequest"
 license.file = "LICENSE"
 author = "Tu Nombre"
 author_email = "tu@email.com"
 
-[tool.briefcase.app.orbes]
-formal_name = "Orbes"
-description = "Juego de orbes y burbujas para iOS y macOS"
-icon = "src/orbes/resources/icon"
-sources = ["src/orbes"]
+[tool.briefcase.app.bubblequest]
+formal_name = "BubbleQuest"
+description = "Juego de plataformas con burbujas para iOS y macOS"
+icon = "src/bubblequest/resources/icon"
+sources = ["src/bubblequest"]
 test_sources = ["tests"]
 requires = [
     "pygame-ce",
@@ -23,11 +23,11 @@ requires = [
 ]
 test_requires = ["pytest"]
 
-[tool.briefcase.app.orbes.macOS]
+[tool.briefcase.app.bubblequest.macOS]
 universal_build = true
 requires = []
 
-[tool.briefcase.app.orbes.iOS]
+[tool.briefcase.app.bubblequest.iOS]
 # OJO: pygame no es un objetivo oficial de Briefcase en iOS.
 # Necesitarás una rueda (wheel) de pygame-ce compilada para iOS
 # (ver README, sección "Riesgo iOS").

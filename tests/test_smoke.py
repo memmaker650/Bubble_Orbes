@@ -1,5 +1,5 @@
-from orbes.app import App
-from orbes.scenes import GameScene, ScoresScene
+from bubblequest.app import App
+from bubblequest.scenes import GameScene, ScoresScene
 
 
 def test_app_runs_menu_game_scores_headless(tmp_path):
@@ -18,8 +18,8 @@ def test_app_runs_menu_game_scores_headless(tmp_path):
 def test_flag_button_changes_and_saves_language(tmp_path):
     import pygame
 
-    from orbes import translations
-    from orbes.scenes import MenuScene
+    from bubblequest import translations
+    from bubblequest.scenes import MenuScene
 
     app = App(db_path=tmp_path / "t.db")
     menu = MenuScene(app)
@@ -41,7 +41,7 @@ def test_flag_button_changes_and_saves_language(tmp_path):
 
 
 def test_menu_play_opens_play_screen_with_three_options(tmp_path):
-    from orbes.scenes import MenuScene, PlayScene
+    from bubblequest.scenes import MenuScene, PlayScene
 
     app = App(db_path=tmp_path / "t.db")
     menu = MenuScene(app)
@@ -58,8 +58,8 @@ def test_menu_play_opens_play_screen_with_three_options(tmp_path):
 
 
 def test_difficulty_cycles_saves_and_applies(tmp_path):
-    from orbes import settings as S
-    from orbes.scenes import GameScene, PlayScene
+    from bubblequest import settings as S
+    from bubblequest.scenes import GameScene, PlayScene
 
     app = App(db_path=tmp_path / "t.db")
     play = PlayScene(app)
@@ -82,7 +82,7 @@ def test_difficulty_cycles_saves_and_applies(tmp_path):
 
 
 def test_tutorial_button_then_level_one_keeps_difficulty(tmp_path):
-    from orbes.scenes import PlayScene
+    from bubblequest.scenes import PlayScene
 
     app = App(db_path=tmp_path / "t.db")
     app.db.set_setting("difficulty", "hard")
@@ -107,8 +107,8 @@ def test_tutorial_button_then_level_one_keeps_difficulty(tmp_path):
 
 
 def test_celebration_draws_and_overlay_appears_after(tmp_path):
-    from orbes import settings as S
-    from orbes.scenes import GameScene
+    from bubblequest import settings as S
+    from bubblequest.scenes import GameScene
 
     app = App(db_path=tmp_path / "t.db")
     game = GameScene(app, level_index=1)
@@ -126,8 +126,8 @@ def test_celebration_draws_and_overlay_appears_after(tmp_path):
 
 
 def test_death_animations_draw(tmp_path):
-    from orbes.entities import Ghost
-    from orbes.scenes import GameScene
+    from bubblequest.entities import Ghost
+    from bubblequest.scenes import GameScene
 
     app = App(db_path=tmp_path / "t.db")
     game = GameScene(app, level_index=1, lives=1)
@@ -144,7 +144,7 @@ def test_death_animations_draw(tmp_path):
 
 
 def test_game_over_saves_score_with_difficulty(tmp_path):
-    from orbes.scenes import GameScene
+    from bubblequest.scenes import GameScene
     app = App(db_path=tmp_path / "t.db")
     game = GameScene(app, level_index=1, difficulty="hard")
     w = game.world
@@ -157,9 +157,9 @@ def test_game_over_saves_score_with_difficulty(tmp_path):
 
 
 def test_hud_hearts_match_difficulty(tmp_path):
-    from orbes import settings as S
-    from orbes.scenes import GameScene
-    from orbes import ui
+    from bubblequest import settings as S
+    from bubblequest.scenes import GameScene
+    from bubblequest import ui
     calls = []
     real = ui.draw_heart
     ui.draw_heart = lambda surf, center, size, filled: calls.append(filled) or real(surf, center, size, filled)
@@ -180,8 +180,8 @@ def test_hud_hearts_match_difficulty(tmp_path):
 
 
 def test_scores_screen_shows_difficulty_letter(tmp_path):
-    from orbes.scenes import ScoresScene
-    from orbes import translations
+    from bubblequest.scenes import ScoresScene
+    from bubblequest import translations
     app = App(db_path=tmp_path / "t.db")
     app.db.add_score("Ana", 900, 3, "hard")
     app.db.add_score("Leo", 500, 2, "easy")
@@ -189,14 +189,14 @@ def test_scores_screen_shows_difficulty_letter(tmp_path):
     scene = ScoresScene(app)
     scene.draw(app.display.surface)             # sin errores con y sin dificultad
     translations.set_language("es")
-    from orbes.translations import t
+    from bubblequest.translations import t
     assert [t(f"difficulty_short.{d}") for d in ("easy", "normal", "hard")] == ["F", "M", "D"]
     app.db.close()
 
 
 def test_hud_draws_half_heart(tmp_path):
-    from orbes.scenes import GameScene
-    from orbes import ui
+    from bubblequest.scenes import GameScene
+    from bubblequest import ui
     calls = []
     real = ui.draw_heart
     ui.draw_heart = lambda surf, center, size, filled: calls.append(filled) or real(surf, center, size, filled)
@@ -223,7 +223,7 @@ def _win_level(app, game):
 
 
 def test_new_game_always_starts_at_level_one(tmp_path):
-    from orbes.scenes import GameScene, PlayScene
+    from bubblequest.scenes import GameScene, PlayScene
     app = App(db_path=tmp_path / "t.db")
     # Completa los niveles 1, 2 y 3 seguidos
     game = GameScene(app, level_index=1)
@@ -242,7 +242,7 @@ def test_new_game_always_starts_at_level_one(tmp_path):
 
 
 def test_new_game_after_game_over_starts_at_level_one(tmp_path):
-    from orbes.scenes import GameScene, PlayScene
+    from bubblequest.scenes import GameScene, PlayScene
     app = App(db_path=tmp_path / "t.db")
     game = GameScene(app, level_index=3, lives=1)
     game.world.hit_player(1.0)
@@ -258,9 +258,9 @@ def test_new_game_after_game_over_starts_at_level_one(tmp_path):
 
 
 def test_continue_resumes_where_left_but_new_game_does_not(tmp_path):
-    from orbes import savegame
-    from orbes.scenes import MenuScene, PlayScene
-    from orbes.world import World
+    from bubblequest import savegame
+    from bubblequest.scenes import MenuScene, PlayScene
+    from bubblequest.world import World
     app = App(db_path=tmp_path / "t.db")
     app.db.save_game(savegame.snapshot(World(3, lives=2, score=1500, seed=1)))
     MenuScene(app)._activate("continue")
@@ -272,8 +272,8 @@ def test_continue_resumes_where_left_but_new_game_does_not(tmp_path):
 
 
 def test_medkits_draw(tmp_path):
-    from orbes.levels import index_of
-    from orbes.scenes import GameScene
+    from bubblequest.levels import index_of
+    from bubblequest.scenes import GameScene
     app = App(db_path=tmp_path / "t.db")
     game = GameScene(app, level_index=index_of(20))
     assert game.world.medkits
@@ -284,8 +284,8 @@ def test_medkits_draw(tmp_path):
 
 
 def test_level_complete_window_shows_heart_and_next_level_keeps_it(tmp_path):
-    from orbes.scenes import GameScene
-    from orbes import translations
+    from bubblequest.scenes import GameScene
+    from bubblequest import translations
     translations.set_language("es")
     app = App(db_path=tmp_path / "t.db")
     game = GameScene(app, level_index=1, lives=2)
@@ -307,7 +307,7 @@ def test_level_complete_window_shows_heart_and_next_level_keeps_it(tmp_path):
 
 def test_level_selector_picks_starting_level(tmp_path):
     import pygame
-    from orbes.scenes import PlayScene
+    from bubblequest.scenes import PlayScene
     app = App(db_path=tmp_path / "t.db")
     play = PlayScene(app)
     names = [n for n, _ in play.buttons]
@@ -328,8 +328,8 @@ def test_level_selector_picks_starting_level(tmp_path):
 
 
 def test_level_selector_wraps_and_resets(tmp_path):
-    from orbes.levels import LEVELS
-    from orbes.scenes import PlayScene
+    from bubblequest.levels import LEVELS
+    from bubblequest.scenes import PlayScene
     app = App(db_path=tmp_path / "t.db")
     play = PlayScene(app)
     play._activate("level_prev")                    # del 1 salta al último
@@ -342,8 +342,8 @@ def test_level_selector_wraps_and_resets(tmp_path):
 
 
 def test_level_selector_can_be_hidden(tmp_path):
-    from orbes import settings as S
-    from orbes.scenes import PlayScene
+    from bubblequest import settings as S
+    from bubblequest.scenes import PlayScene
     app = App(db_path=tmp_path / "t.db")
     S.LEVEL_SELECT = False
     try:
@@ -357,7 +357,7 @@ def test_level_selector_can_be_hidden(tmp_path):
 
 
 def test_coins_and_popup_draw(tmp_path):
-    from orbes.scenes import GameScene
+    from bubblequest.scenes import GameScene
     app = App(db_path=tmp_path / "t.db")
     game = GameScene(app, level_index=1)
     w = game.world
@@ -373,9 +373,9 @@ def test_no_black_boxes_background_surfaces_stay_opaque(tmp_path):
     """Regresión: el fantasma (y otras capas semitransparentes) mostraba a veces un cuadro
     negro. Las superficies de fondo no deben tener canal alfa ni acabar con píxeles
     transparentes, se dibuje lo que se dibuje encima."""
-    from orbes import settings as S
-    from orbes.entities import Bubble, Ghost, LaserEnemy, TongueEnemy
-    from orbes.scenes import GameScene
+    from bubblequest import settings as S
+    from bubblequest.entities import Bubble, Ghost, LaserEnemy, TongueEnemy
+    from bubblequest.scenes import GameScene
     app = App(db_path=tmp_path / "t.db")
     game = GameScene(app, level_index=1)
     w = game.world
@@ -405,7 +405,7 @@ def test_no_black_boxes_background_surfaces_stay_opaque(tmp_path):
 
 def test_fade_keeps_transparent_pixels_transparent():
     import pygame
-    from orbes.ui import fade, transparent_layer
+    from bubblequest.ui import fade, transparent_layer
     layer = transparent_layer((20, 20))
     pygame.draw.rect(layer, (200, 50, 50), (5, 5, 10, 10))
     fade(layer, 153)
@@ -419,7 +419,7 @@ def test_icons_exist_for_every_platform():
     from pathlib import Path
 
     import pygame
-    res = Path(__file__).parents[1] / "src" / "orbes" / "resources"
+    res = Path(__file__).parents[1] / "src" / "bubblequest" / "resources"
     sizes = (20, 29, 40, 58, 60, 76, 80, 87, 120, 152, 167, 180, 1024,   # iOS
              16, 32, 64, 128, 256, 512)                                   # Linux
     for size in sizes:

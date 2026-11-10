@@ -1,7 +1,7 @@
 import pytest
 
-from orbes import translations
-from orbes.translations import t
+from bubblequest import translations
+from bubblequest.translations import t
 
 
 @pytest.fixture(autouse=True)

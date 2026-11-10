@@ -1,8 +1,8 @@
 import pytest
 
-from orbes import settings as S
-from orbes.levels import LEVELS, parse_level
-from orbes.world import World
+from bubblequest import settings as S
+from bubblequest.levels import LEVELS, parse_level
+from bubblequest.world import World
 
 DT = 1 / 60
 
@@ -168,7 +168,7 @@ def test_star_is_reachable_from_top_platform():
 
 
 # --- tipos de enemigo ---
-from orbes.entities import LaserEnemy, TongueEnemy  # noqa: E402
+from bubblequest.entities import LaserEnemy, TongueEnemy  # noqa: E402
 
 FLOOR_Y = S.FLOOR_Y - 32
 
@@ -287,8 +287,8 @@ def test_unknown_difficulty_falls_back_to_normal():
 
 
 # --- regresión: enemigo que desaparecía al escaparse de una burbuja pegada al techo ---
-from orbes.entities import Bubble  # noqa: E402
-from orbes.world import INTERIOR  # noqa: E402
+from bubblequest.entities import Bubble  # noqa: E402
+from bubblequest.world import INTERIOR  # noqa: E402
 
 
 def _release_at(w, e, x, y, direction):
@@ -336,7 +336,7 @@ def test_release_anywhere_along_borders_never_escapes():
 
 def test_push_out_uses_nearest_side_not_velocity():
     from pygame import Rect
-    from orbes.entities import Enemy
+    from bubblequest.entities import Enemy
     import random
     e = Enemy(0, 0, 50, random.Random(1))
     block = Rect(100, 100, 40, 40)
@@ -441,7 +441,7 @@ def test_celebration_has_time_limit():
 
 
 # --- animaciones de muerte ---
-from orbes.entities import Ghost  # noqa: E402
+from bubblequest.entities import Ghost  # noqa: E402
 
 
 def test_popped_enemy_becomes_ghost_that_rises_off_screen():
@@ -471,7 +471,7 @@ def test_popped_enemy_becomes_ghost_that_rises_off_screen():
 
 def test_ghost_accelerates_up_to_max_speed():
     import random
-    from orbes.entities import TongueEnemy
+    from bubblequest.entities import TongueEnemy
     g = Ghost(TongueEnemy(100, 400, 50, random.Random(1)))
     g.update(0.1)
     v1 = g.vy
@@ -516,7 +516,7 @@ def test_player_killed_in_air_falls_and_lies_on_floor():
 
 
 def test_closing_during_death_saves_respawned_or_nothing():
-    from orbes import savegame
+    from bubblequest import savegame
     w = World(1, lives=2, seed=1)
     w.hit_player(S.DAMAGE_ATTACK)
     step(w, 1)
@@ -655,7 +655,7 @@ def test_hard_preemptive_laser_on_player_dropping_into_line():
 # --- estado de recarga visible ---
 
 def test_laser_pupils_black_while_recharging_red_when_charged():
-    from orbes.scenes import GameScene
+    from bubblequest.scenes import GameScene
     w, e, p = _duel(LaserEnemy, gap=120)
     p.invuln = 99
     assert e.charged and GameScene.laser_pupil_color(e) == S.LASER
@@ -690,7 +690,7 @@ def test_enemies_are_not_tired_at_level_start():
 
 
 def test_tired_state_survives_save():
-    from orbes import savegame
+    from bubblequest import savegame
     w = World(1, seed=1)
     e = next(x for x in w.enemies if isinstance(x, TongueEnemy))
     e.tired, e.cooldown = True, 1.0
@@ -777,7 +777,7 @@ def test_down_in_the_air_does_nothing_special():
 
 def test_down_key_and_button_exist():
     import pygame
-    from orbes.controls import BUTTONS, KEYS
+    from bubblequest.controls import BUTTONS, KEYS
     assert pygame.K_DOWN in KEYS["down"]
     assert list(BUTTONS) == ["left", "right", "down", "jump", "bubble"]
     rects = list(BUTTONS.values())
@@ -916,7 +916,7 @@ def test_player_just_beyond_normal_reach_is_safe_from_normal_tongue():
 
 
 def test_super_attack_survives_save():
-    from orbes import savegame
+    from bubblequest import savegame
     w = World(1, seed=1)
     e = next(x for x in w.enemies if isinstance(x, LaserEnemy))
     e.attack, e.super_attack = "fire", True
@@ -971,7 +971,7 @@ def test_tongue_hit_is_an_attack_not_a_touch():
 
 
 def test_half_hearts_survive_save():
-    from orbes import savegame
+    from bubblequest import savegame
     w = World(2, lives=1.5, seed=1)
     r = savegame.restore(savegame.snapshot(w))
     assert r.lives == 1.5
@@ -1013,7 +1013,7 @@ def test_hard_starts_with_two_and_can_reach_three():
 
 
 def test_medkit_can_also_reach_three_in_hard():
-    from orbes.levels import index_of
+    from bubblequest.levels import index_of
     w = World(index_of(5), lives=2, seed=1, difficulty="hard")
     for e in w.enemies:
         e.alive = False
@@ -1030,7 +1030,7 @@ def test_tutorial_gives_no_heart():
 
 
 def test_heart_carries_over_to_next_level_and_save(tmp_path):
-    from orbes import savegame
+    from bubblequest import savegame
     w = World(1, lives=2, seed=1)
     _win_now(w)
     data = savegame.snapshot(w)                # al cerrar tras ganar: inicio del siguiente

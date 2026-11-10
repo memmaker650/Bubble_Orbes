@@ -2,10 +2,10 @@ import json
 
 import pytest
 
-from orbes import settings as S
-from orbes.level_generator import LevelGenerator
-from orbes.levels import LEVELS, LEVELS_DIR, LevelDef, index_of, load_levels
-from orbes.world import TUTORIAL_STEPS, World
+from bubblequest import settings as S
+from bubblequest.level_generator import LevelGenerator
+from bubblequest.levels import LEVELS, LEVELS_DIR, LevelDef, index_of, load_levels
+from bubblequest.world import TUTORIAL_STEPS, World
 
 DT = 1 / 60
 
@@ -168,7 +168,7 @@ def test_player_cannot_walk_through_thin_side_walls():
 def test_inner_blocks_are_solid_obstacles():
     rows = LevelGenerator().build_map()
     rows[14] = "    #    "                       # bloque en mitad del suelo
-    from orbes.levels import parse_level
+    from bubblequest.levels import parse_level
     data = parse_level(rows)
     block = S.cell_pos(4, 14)
     assert any(s.topleft == block and s.size == (S.TILE, S.TILE) for s in data.solids)
@@ -179,7 +179,7 @@ def test_readme_documents_every_map_character():
     import re
     from pathlib import Path
 
-    from orbes.levels import parse_level
+    from bubblequest.levels import parse_level
     readme = (Path(__file__).parents[1] / "README.md").read_text(encoding="utf-8")
     section = readme.split("### Caracteres del mapa", 1)[1].split("Reglas del mapa", 1)[0]
     documented = set(re.findall(r"^\|\s*`(.)`\s*\|", section, re.M))

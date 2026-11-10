@@ -2,11 +2,11 @@
 
 import pytest
 
-from orbes import settings as S
-from orbes.level_generator import (FIRST_GENERATED, LAST_GENERATED, LAYOUTS, PATH_COLS,
+from bubblequest import settings as S
+from bubblequest.level_generator import (FIRST_GENERATED, LAST_GENERATED, LAYOUTS, PATH_COLS,
                                    SAFE_ROWS, LevelGenerator, layout_for, set_layout)
-from orbes.levels import LEVELS, index_of
-from orbes.world import World
+from bubblequest.levels import LEVELS, index_of
+from bubblequest.world import World
 
 DT = 1 / 60
 GENERATED = range(FIRST_GENERATED, LAST_GENERATED + 1)

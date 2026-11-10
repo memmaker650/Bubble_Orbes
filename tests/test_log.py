@@ -4,7 +4,7 @@ import logging
 import os
 from datetime import date, datetime
 
-from orbes.log import KEEP_FILES, DailyFileHandler, log_file_for, remove_old_logs, setup_logging
+from bubblequest.log import KEEP_FILES, DailyFileHandler, log_file_for, remove_old_logs, setup_logging
 
 
 def test_log_file_name_uses_date():
@@ -48,12 +48,12 @@ def test_daily_handler_switches_file_at_midnight(tmp_path):
 def test_setup_logging_writes_todays_file_and_prunes(tmp_path):
     for d in range(1, 13):                                    # 12 logs viejos
         log_file_for(tmp_path, date(2025, 1, d)).write_text("x")
-    logger = logging.getLogger("orbes")
+    logger = logging.getLogger("bubblequest")
     saved = logger.handlers[:]
     logger.handlers.clear()
     try:
         setup_logging(log_dir=tmp_path)
-        logging.getLogger("orbes.world").warning("aviso de prueba")
+        logging.getLogger("bubblequest.world").warning("aviso de prueba")
         for h in logger.handlers:
             h.flush()
         today = log_file_for(tmp_path, date.today())

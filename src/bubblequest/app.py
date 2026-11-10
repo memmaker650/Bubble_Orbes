@@ -40,7 +40,7 @@ SAVE_EVENTS = (pygame.APP_WILLENTERBACKGROUND, pygame.APP_TERMINATING)
 class App:
     def __init__(self, db_path=None):
         pygame.init()
-        pygame.display.set_caption("Orbes")
+        pygame.display.set_caption(S.APP_NAME)
         set_window_icon()                  # antes de crear la ventana
         self.display = Display()
         self.db = Database(db_path or default_db_path())
@@ -87,6 +87,6 @@ class App:
 
 def main():
     setup_logging()     # consola + BubbleQuest_AAAAMMDD.log (ver log.py y paths.py)
-    log.info("Iniciando Orbes %s (Python %s, pygame-ce %s, %s)", __version__,
+    log.info("Iniciando BubbleQuest %s (Python %s, pygame-ce %s, %s)", __version__,
              sys.version.split()[0], pygame.version.ver, sys.platform)
     App().run()

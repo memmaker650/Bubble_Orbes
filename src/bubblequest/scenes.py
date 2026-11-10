@@ -14,7 +14,7 @@ from .controls import Controls, is_confirm, tap_position
 from .display import opaque_surface
 from . import levels
 from .translations import t
-from .ui import (Button, FlagButton, draw_hearts, draw_message_box, draw_text, fade,
+from .ui import (Button, FlagButton, draw_hearts, draw_message_box, draw_text, fade, fit_font,
                  transparent_layer)
 from .world import World
 
@@ -126,7 +126,9 @@ class MenuScene(Scene):
             y = 240 - ((self.t * 30 + i * 70) % 260) + 120
             r = 12 + (i % 3) * 5
             pygame.draw.circle(surf, S.BUBBLE, (x + math.sin(self.t + i) * 12, y), r, 2)
-        draw_text(surf, self.title_font, "ORBES", S.BUBBLE, center=(S.LOGICAL_W // 2, 200))
+        title = "BUBBLEQUEST"
+        draw_text(surf, fit_font(self.title_font, title, S.LOGICAL_W - 2 * S.BORDER - 16), title,
+                  S.BUBBLE, center=(S.LOGICAL_W // 2, 200))
         draw_text(surf, self.small, t("menu.subtitle"), S.WHITE,
                   center=(S.LOGICAL_W // 2, 270))
         for _, button in self.buttons:

@@ -2,12 +2,12 @@
 
 Para crear los ficheros que falten en ``resources/levels``::
 
-    python -m orbes.level_generator
+    python -m bubblequest.level_generator
 
 Los niveles que ya existen NO se sobrescriben (se pueden haber editado a mano). Para
 regenerarlos todos desde la plantilla, perdiendo esos cambios::
 
-    python -m orbes.level_generator --force
+    python -m bubblequest.level_generator --force
 """
 
 import random
