@@ -431,3 +431,18 @@ def test_icons_exist_for_every_platform():
     assert (res / "icon.icns").read_bytes()[:4] == b"icns"               # macOS
     assert (res / "icon.ico").read_bytes()[:4] == b"\x00\x00\x01\x00"    # Windows
     assert (res / "icon.png").exists() and (res / "icon-macos.png").exists()
+
+
+def test_bombs_and_explosions_draw(tmp_path):
+    from bubblequest.levels import index_of
+    from bubblequest.scenes import GameScene
+    app = App(db_path=tmp_path / "t.db")
+    game = GameScene(app, level_index=index_of(13))
+    w = game.world
+    w.bombs[0].light()
+    for _ in range(int((3.0 + 0.7) * 60)):
+        w.player.invuln = 99
+        game.update(1 / 60)
+        game.draw(app.display.surface)
+    assert len(w.bombs) == 1
+    app.db.close()

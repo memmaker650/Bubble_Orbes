@@ -51,7 +51,7 @@ def test_export_does_not_overwrite_hand_edited_levels(tmp_path):
 
 def test_export_and_reload_roundtrip(tmp_path):
     gen = LevelGenerator()
-    custom = gen.make(7, gen.build_map(r3="B       B"), name="Prueba")
+    custom = gen.make(7, gen.build_map(r3="A       A"), name="Prueba")
     gen.export_all([custom], tmp_path)
     loaded = load_levels(tmp_path)
     assert loaded == [custom]
@@ -63,7 +63,7 @@ def test_invalid_map_is_rejected(tmp_path):
     with pytest.raises(ValueError, match="level_01.json"):
         load_levels(tmp_path)
     with pytest.raises(ValueError):
-        LevelGenerator().build_map(r3="XXXXXXXXX")
+        LevelGenerator().build_map(r3="@@@@@@@@@")
 
 
 def test_index_of_level_number():
@@ -184,7 +184,7 @@ def test_readme_documents_every_map_character():
     section = readme.split("### Caracteres del mapa", 1)[1].split("Reglas del mapa", 1)[0]
     documented = set(re.findall(r"^\|\s*`(.)`\s*\|", section, re.M))
     accepted = set()
-    for ch in "#=LPSEBHC XYZ@0":
+    for ch in "#=LPSEABHC XYZ@0":
         rows = ["         "] * 15 + ["P   " + (ch if ch != "P" else " ") + "    "]
         try:
             parse_level(rows)

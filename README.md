@@ -79,9 +79,10 @@ fichero. `python -m bubblequest.level_generator` crea los que falten **sin sobre
 | `P`      | Inicio del jugador (uno por nivel, obligatorio).                                    |
 | `S`      | Estrella de fin de nivel: con todos los enemigos eliminados, al tocarla se completa. |
 | `E`      | Enemigo rojo: ataca sacando la lengua.                                              |
-| `B`      | Enemigo azul: ataca con un láser por los ojos.                                      |
+| `A`      | Enemigo azul: ataca con un láser por los ojos.                                      |
 | `H`      | Botiquín: recupera un corazón (no se coge con la vida al completo).                 |
 | `C`      | Moneda de oro: +100 puntos.                                                         |
+| `B`      | Bomba: se enciende al golpearla con una burbuja o pulsando la acción encima; a los 3 s explota y elimina a los enemigos a menos de ~140 px (3,5 casillas). |
 
 Reglas del mapa:
 
@@ -94,6 +95,36 @@ Reglas del mapa:
 - El jugador puede empezar **abajo** (la estrella arriba), **arriba del todo** (la estrella abajo
   del todo) o **a mitad** del nivel (la estrella arriba o abajo). En los niveles 5 a 20 el
   generador rota esas cuatro disposiciones.
+
+### Bombas (`B`)
+
+Una bomba se define poniendo el carácter **`B`** (de *bomba*) en una casilla del `map`, **justo encima de una
+plataforma** (`=`), igual que enemigos, botiquines y monedas. No hay ningún campo aparte en el
+JSON: al cargar el nivel, cada `B` se convierte en una bomba apagada en esa casilla. Ejemplo real
+(`level_13.json`, filas 6 y 7):
+
+```json
+"map": [
+  "...",
+  " H    BEA",
+  "===   ===",
+  "..."
+]
+```
+
+- **Se enciende** al golpearla directamente con una burbuja (la burbuja se gasta) o con el
+  jugador encima pulsando la acción (en lugar de lanzar una burbuja). Entonces cambia a la
+  imagen con la mecha encendida, que se va consumiendo, con una cuenta atrás 3, 2, 1.
+- **Explota a los 3 s** (`BOMB_FUSE`) y elimina a todos los enemigos a menos de **~140 px**
+  (`BOMB_RADIUS`, unos 2,5 cm en un iPhone, 3,5 casillas) en cualquier dirección, aunque haya
+  muros en medio, también a los atrapados en burbujas. Al jugador no le hace daño. Enciende las
+  bombas que pille dentro del radio (reacción en cadena). Deja humo gris que se difumina.
+- Cada explosión queda registrada en el log (posición, enemigos eliminados y bombas encendidas
+  en cadena).
+- El generador (`place_bombs` en `level_generator.py`) pone **1 bomba en los niveles 10 a 12**
+  (hasta 45 filas) y **2 en los niveles 13 a 20**, donde más enemigos quedan a su alcance, lejos
+  del inicio del jugador. En los niveles 1 a 9 no hay bombas, pero se pueden añadir a mano con `B`.
+- Ajustes en `settings.py`: `BOMB_FUSE`, `BOMB_RADIUS`, `EXPLOSION_TIME`, `SMOKE_TIME`.
 
 ## Desarrollo
 

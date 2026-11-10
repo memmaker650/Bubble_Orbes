@@ -16,6 +16,7 @@ import sys
 import json
 from pathlib import Path
 
+from . import settings as S
 from .levels import LEVELS_DIR, LevelDef, parse_level
 
 # Interior del nivel (9 x 16). Los bordes se añaden solos. Plataformas cada 3 filas
@@ -46,7 +47,7 @@ EMPTY = " " * 9
 # paso, la vista de los enemigos, la lengua, el láser y las burbujas.
 TALL_LEVEL = [
     "    S    ",
-    "  B L E  ",
+    "  A L E  ",
     "  =====  ",
     "         ",
     "E       L",
@@ -55,19 +56,19 @@ TALL_LEVEL = [
     "    L    ",
     "  =====  ",
     "         ",
-    "B       E",
+    "A       E",
     "===   ===",
     "         ",
-    "   L B   ",
+    "   L A   ",
     "  =====  ",
     "         ",
-    "LE      B",
+    "LE      A",
     "===   ===",
     "         ",
     "  E L    ",
     "  =====  ",
     "         ",
-    "E       B",
+    "E       A",
     "===   ===",
     "         ",
     "    L    ",
@@ -174,12 +175,57 @@ def set_layout(rows, layout, number) -> list[str]:
     # Enemigos demasiado cerca del inicio: a otra plataforma, lejos (siempre los mismos)
     rng = random.Random(number * 31337)
     near = [(r, c) for r in range(n) for c in range(9)
-            if grid[r][c] in "EB" and abs(r - start[0]) <= SAFE_ROWS]
+            if grid[r][c] in "EA" and abs(r - start[0]) <= SAFE_ROWS]
     far = [(r, c) for r in range(n - 1) for c in range(9)
            if on_platform(r, c) and abs(r - start[0]) > SAFE_ROWS + 2 and (r, c) != star]
     rng.shuffle(far)
     for (r, c), (fr, fc) in zip(near, far):
         grid[fr][fc], grid[r][c] = grid[r][c], " "
+    result = ["".join(row) for row in grid]
+    parse_level(result)
+    return result
+
+
+# --- Bombas (niveles 10+) ---
+FIRST_BOMB_LEVEL = 10
+
+
+def bomb_count(rows, number) -> int:
+    """Ninguna antes del nivel 10; 1 en niveles de hasta 45 filas y 2 en los más altos."""
+    if number < FIRST_BOMB_LEVEL:
+        return 0
+    return 1 if len(rows) <= 45 else 2
+
+
+def place_bombs(rows, number) -> list[str]:
+    """Añade bombas (B) encima de plataformas, donde más enemigos quedan dentro de su radio
+    de explosión, lejos del inicio del jugador y separadas entre sí. Respeta todo lo demás
+    (sirve para niveles retocados a mano). Si ya tiene bombas, no toca nada."""
+    want = bomb_count(rows, number)
+    if want == 0 or any("B" in row for row in rows):
+        return list(rows)
+    grid = [list(row) for row in rows]
+    n = len(grid)
+    p_row = next(r for r, row in enumerate(rows) if "P" in row)
+    enemies = [(r, c) for r in range(n) for c in range(9) if grid[r][c] in "EA"]
+    reach = S.BOMB_RADIUS / S.TILE                     # radio en casillas
+
+    def hits(r, c):
+        return sum(1 for er, ec in enemies if (er - r) ** 2 + (ec - c) ** 2 <= reach ** 2)
+
+    rng = random.Random(number * 4099)
+    spots = [(r, c) for r in range(n - 1) for c in range(9)
+             if grid[r][c] == " " and grid[r + 1][c] == "=" and abs(r - p_row) > SAFE_ROWS + 2]
+    rng.shuffle(spots)                                 # desempate, siempre igual
+    spots.sort(key=lambda rc: -hits(*rc))
+    chosen = []
+    for r, c in spots:
+        if len(chosen) == want:
+            break
+        if all(abs(r - cr) >= 8 for cr, _ in chosen):
+            chosen.append((r, c))
+    for r, c in chosen:
+        grid[r][c] = "B"
     result = ["".join(row) for row in grid]
     parse_level(result)
     return result
@@ -209,12 +255,12 @@ class LevelGenerator:
 
     def default_levels(self) -> list[LevelDef]:
         """Niveles del juego. El tutorial (0) usa el mismo mapa que el nivel 1."""
-        level1 = self.build_map(m="B")                                  # 2 rojos + 1 azul
+        level1 = self.build_map(m="A")                                  # 2 rojos + 1 azul
         return [
             self.make(0, level1, tutorial=True, enemies_attack=False),     # sin monedas
             self.make(1, place_coins(level1, 1)),
-            self.make(2, place_coins(self.build_map(r3="   E B   ", m="B"), 2)),
-            self.make(3, place_coins(self.build_map(r3="   B B   ", r12="E       B"), 3)),
+            self.make(2, place_coins(self.build_map(r3="   E A   ", m="A"), 2)),
+            self.make(3, place_coins(self.build_map(r3="   A A   ", r12="E       A"), 3)),
             self.make(4, place_coins(self.tall_map(), 4), name="La torre"),
         ] + [self.make(n, self.generated_map(n)) for n in range(FIRST_GENERATED, LAST_GENERATED + 1)]
 
@@ -260,7 +306,7 @@ class LevelGenerator:
         n_enemies = min(len(free), round(7 + 18 * k))
         laser_share = 0.35 + 0.25 * k
         for r, c in free[:n_enemies]:
-            grid[r][c] = "B" if rng.random() < laser_share else "E"
+            grid[r][c] = "A" if rng.random() < laser_share else "E"
 
         # Botiquines (recuperan un corazón): uno más cada ~15 filas, repartidos en altura.
         # Se colocan al final para no alterar el resto del nivel.
@@ -275,6 +321,7 @@ class LevelGenerator:
 
         result = place_coins(["".join(row) for row in grid], number)   # al final: no altera lo demás
         result = set_layout(result, layout_for(number), number)       # inicio y estrella
+        result = place_bombs(result, number)                          # bombas (nivel 10+)
         parse_level(result)
         return result
 

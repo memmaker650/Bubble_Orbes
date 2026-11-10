@@ -154,7 +154,7 @@ def test_bricks_are_parsed_and_solid():
     assert len(data.bricks) == 1 and data.bricks[0] in data.solids
 
 
-@pytest.mark.parametrize("kind", ["E", "B"])
+@pytest.mark.parametrize("kind", ["E", "A"])
 def test_enemy_does_not_see_or_attack_through_brick(kind):
     # Enemigo dentro del alcance de cualquiera de los dos ataques; solo cambia el ladrillo
     w, e, p = _brick_world("P L" + kind + "     ", kind)   # P . L E
@@ -178,7 +178,7 @@ def test_tongue_stops_at_brick():
 
 
 def test_laser_beam_stops_at_brick():
-    w, e, p = _brick_world("P  L  B  ", "B")
+    w, e, p = _brick_world("P  L  A  ", "A")
     e._start_attack(w.solids)
     e.attack = "fire"
     e._aim(w.solids)

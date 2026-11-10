@@ -428,7 +428,7 @@ class LaserEnemy(Enemy):
         return Rect(left, ey - 4, right - left, 8)
 
 
-ENEMY_TYPES = {"E": TongueEnemy, "B": LaserEnemy}
+ENEMY_TYPES = {"E": TongueEnemy, "A": LaserEnemy}
 
 
 class Bubble:
@@ -546,3 +546,29 @@ class Coin:
         self.rect.center = (x + S.TILE // 2, y + S.TILE // 2)
         self.cell = (x, y)
         self.taken = False
+
+
+class Bomb:
+    """Bomba: bola negra con mecha. Apagada hasta que se enciende (burbuja o acción encima);
+    entonces explota a los BOMB_FUSE segundos. Apoyada en el suelo de su casilla."""
+
+    def __init__(self, x, y):
+        s = S.BOMB_SIZE
+        self.rect = Rect(0, 0, s, s)
+        self.rect.midbottom = (x + S.TILE // 2, y + S.TILE)
+        self.cell = (x, y)
+        self.lit = False
+        self.timer = S.BOMB_FUSE        # segundos que le quedan a la mecha
+
+    def light(self) -> bool:
+        """Enciende la mecha. Devuelve True si estaba apagada."""
+        if self.lit:
+            return False
+        self.lit = True
+        self.timer = S.BOMB_FUSE
+        return True
+
+    @property
+    def fuse_left(self) -> float:
+        """1 con la mecha entera, 0 a punto de explotar."""
+        return max(0.0, self.timer / S.BOMB_FUSE) if self.lit else 1.0

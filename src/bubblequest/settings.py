@@ -151,6 +151,14 @@ POINTS_BUBBLE = 10
 POINTS_ENEMY = 100
 POINTS_LEVEL = 500
 POINTS_COIN = 100
+# Bombas (niveles 10+): se encienden con una burbuja o pulsando la acción encima de ellas y
+# explotan a los BOMB_FUSE segundos, eliminando a los enemigos a menos de BOMB_RADIUS.
+BOMB_SIZE = 26
+BOMB_FUSE = 3.0
+BOMB_RADIUS = 140              # ~2,5 cm en un iPhone (el ancho del juego, 384 px, son ~6,5-7 cm)
+EXPLOSION_TIME = 0.6           # duración del fuego de la explosión
+SMOKE_TIME = 1.8               # el humo gris dura más: se queda flotando y se difumina
+SMOKE_PUFFS = 11               # bocanadas de humo por explosión
 COIN_SIZE = 18
 POPUP_TIME = 0.8              # "+100" flotando al coger una moneda
 
@@ -198,4 +206,10 @@ MEDKIT_CROSS = (225, 35, 45)
 GOLD = (255, 200, 40)
 GOLD_DARK = (200, 140, 20)
 GOLD_SHINE = (255, 245, 180)
+BOMB_BLACK = (28, 28, 34)
+BOMB_CAP = (95, 98, 112)
+FUSE = (125, 92, 58)
+FUSE_BURNT = (70, 50, 35)
+FIRE_ORANGE = (255, 130, 30)
+FIRE_YELLOW = (255, 225, 90)
 DIFFICULTY_COLORS = {"easy": (110, 210, 130), "normal": (255, 215, 40), "hard": (240, 90, 90)}

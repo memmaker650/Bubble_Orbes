@@ -7,7 +7,7 @@ import random
 from pygame import Rect
 
 from . import settings as S
-from .entities import ENEMY_TYPES, Bubble, Coin, Ghost, Medkit, Player, Star
+from .entities import ENEMY_TYPES, Bomb, Bubble, Coin, Ghost, Medkit, Player, Star
 from . import levels
 from .levels import parse_level
 
@@ -100,6 +100,8 @@ class World:
         self.star = Star(*data.star_pos) if data.star_pos else None
         self.medkits = [Medkit(x, y) for x, y in data.medkits]
         self.coins = [Coin(x, y) for x, y in data.coins]
+        self.bombs = [Bomb(x, y) for x, y in data.bombs]
+        self.explosions: list = []   # animaciones de explosión: [x, y, tiempo]
         self.popups: list = []       # textos flotantes ("+100"): [x, y, tiempo, texto, color]
         self.camera_y = 0.0
         self.snap_camera()
@@ -140,6 +142,7 @@ class World:
         self.message_timer = max(0.0, self.message_timer - dt)
         self._update_ghosts(dt)
         self._update_popups(dt)
+        self._update_explosions(dt)
         self._update_camera(dt)
         if self.state == "dying":
             self._update_dying(dt)
@@ -163,8 +166,13 @@ class World:
         if p.just_dropped:
             self._tutorial_event("drop")
         if "bubble" in just and p.shoot_cd <= 0:
-            self._shoot()
-            self._tutorial_event("bubble")
+            bomb = self._bomb_under_player()
+            if bomb is not None:            # encima de una bomba: la acción la enciende
+                bomb.light()
+                p.shoot_cd = S.SHOOT_COOLDOWN
+            else:
+                self._shoot()
+                self._tutorial_event("bubble")
         # Sin objetivo los enemigos nunca inician un ataque (tutorial)
         target = self.player.rect if self.level.enemies_attack else None
         predicted = self._predicted_player() if target and self.rules["preempt"] else None
@@ -172,6 +180,7 @@ class World:
             if e.alive:
                 e.update(dt, self.solids, self.oneway, target, predicted)
         self._update_bubbles(dt)
+        self._update_bombs(dt)
         self._rescue_escaped()
         self._check_medkits()
         self._check_coins()
@@ -273,6 +282,12 @@ class World:
         for b in list(self.bubbles):
             b.update(dt, self.solids)
             if b.state == "shot" and b.captured is None:
+                bomb = next((m for m in self.bombs
+                             if not m.lit and b.rect.colliderect(m.rect)), None)
+                if bomb is not None:        # la burbuja choca contra la bomba: la enciende
+                    bomb.light()
+                    self.bubbles.remove(b)
+                    continue
                 for e in self.enemies:
                     if e.alive and e.state == "walk" and b.rect.colliderect(e.rect):
                         e.trap()
@@ -287,15 +302,17 @@ class World:
                 elif b.life <= 0:
                     self._expire(b)
 
+    def _kill_enemy(self, e):
+        """Elimina un enemigo: fantasma que sube, puntos y "+100" en su color."""
+        e.alive = False
+        self.ghosts.append(Ghost(e))
+        self.score += S.POINTS_ENEMY
+        self.popup(e.rect.centerx, e.rect.top, S.POINTS_ENEMY, S.enemy_color(e.kind, e.angry))
+
     def _pop(self, b):
         if b.captured is not None:
-            e = b.captured
-            e.alive = False
-            self.ghosts.append(Ghost(e))
+            self._kill_enemy(b.captured)
             self._tutorial_event("pop")
-            self.score += S.POINTS_ENEMY
-            # "+100" en el color del enemigo eliminado
-            self.popup(e.rect.centerx, e.rect.top, S.POINTS_ENEMY, S.enemy_color(e.kind, e.angry))
         else:
             self.score += S.POINTS_BUBBLE
         self.bubbles.remove(b)
@@ -353,6 +370,59 @@ class World:
     def popup(self, x, y, points, color):
         """Texto flotante con los puntos ganados (sube y se desvanece)."""
         self.popups.append([x, y, 0.0, f"+{points}", color])
+
+    # --- bombas ---
+    def _bomb_under_player(self):
+        """Bomba apagada en la posición del jugador (para encenderla con la acción)."""
+        p = self.player
+        return next((m for m in self.bombs if not m.lit and p.rect.colliderect(m.rect)), None)
+
+    def _update_bombs(self, dt):
+        for m in list(self.bombs):
+            if m.lit:
+                m.timer -= dt
+                if m.timer <= 0:
+                    self.explode(m)
+
+    def explode(self, bomb):
+        """Explota: elimina a los enemigos a menos de BOMB_RADIUS en cualquier dirección
+        (también los atrapados en burbujas) y enciende las bombas cercanas."""
+        if bomb not in self.bombs:
+            return
+        self.bombs.remove(bomb)
+        cx, cy = bomb.rect.center
+        self.explosions.append([cx, cy, 0.0])
+        r2 = S.BOMB_RADIUS ** 2
+
+        def near(rect):
+            return (rect.centerx - cx) ** 2 + (rect.centery - cy) ** 2 <= r2
+
+        killed = []
+        for b in list(self.bubbles):                   # enemigos atrapados en burbujas
+            if b.captured is not None and near(b.rect):
+                killed.append(b.captured.kind)
+                self._kill_enemy(b.captured)
+                self.bubbles.remove(b)
+        for e in self.enemies:
+            if e.alive and e.state == "walk" and near(e.rect):
+                killed.append(e.kind)
+                self._kill_enemy(e)
+        chained = 0
+        for other in self.bombs:                       # reacción en cadena
+            if near(other.rect) and other.light():
+                chained += 1
+        col, row = ((v - S.BORDER) // S.TILE for v in bomb.cell)   # casilla del mapa
+        log.info("Bomba explotada en el nivel %s, casilla (columna %d, fila %d): "
+                 "%d enemigos eliminados (%d rojos, %d azules), %d bombas encendidas en "
+                 "cadena, quedan %d enemigos", self.number, col, row, len(killed),
+                 killed.count("tongue"), killed.count("laser"), chained, self.enemies_left)
+
+    def _update_explosions(self, dt):
+        for ex in self.explosions:
+            ex[2] += dt
+        # Se mantiene mientras dure el humo (dura más que el fuego)
+        life = max(S.EXPLOSION_TIME, S.SMOKE_TIME)
+        self.explosions = [ex for ex in self.explosions if ex[2] < life]
 
     def _update_popups(self, dt):
         for pop in self.popups:

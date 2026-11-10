@@ -286,6 +286,7 @@ class GameScene(Scene):
         self.world = world
         self._world_surf = None      # superficie con el nivel entero (alto variable)
         self._brick_tile = None
+        self._bomb_images = {}        # {encendida: imagen} (ver _bomb_image)
         self.controls = Controls()
         self.hud = pygame.font.Font(None, 26)
         self.big = pygame.font.Font(None, 54)
@@ -383,11 +384,18 @@ class GameScene(Scene):
             self._draw_medkit(field, m)
         for c in w.coins:
             self._draw_coin(field, c)
+        for m in w.bombs:
+            self._draw_bomb(field, m)
         for e in w.enemies:
             if e.alive:
                 self._draw_enemy(field, e)
         for b in w.bubbles:
             self._draw_bubble(field, b)
+        for x, y, age in w.explosions:
+            self._draw_smoke(field, x, y, age)          # el humo, detrás del fuego
+        for x, y, age in w.explosions:
+            if age < S.EXPLOSION_TIME:
+                self._draw_explosion(field, x, y, age)
         if w.celebrating:
             self._draw_player_celebrating(field, w.player, w.celebrate_t)
         elif w.player.dead:
@@ -479,6 +487,136 @@ class GameScene(Scene):
         layer.blit(img, (1, 1))
         fade(layer, round(255 * alpha))
         surf.blit(layer, layer.get_rect(midbottom=(x, y)))
+
+    # --- bombas ---
+    # Imagen de la bomba (40 x 48): bola negra abajo, saliente rectangular encima y la mecha
+    # saliendo del saliente. La mecha encendida se dibuja aparte (se va consumiendo).
+    BOMB_IMG = (40, 48)
+    BOMB_BALL = ((20, 34), 13)              # centro y radio de la bola
+    BOMB_FUSE_PTS = ((20, 17), (21, 11), (26, 7), (31, 4))   # mecha, del saliente a la punta
+
+    def _bomb_image(self, lit):
+        """Imagen de la bomba apagada (mecha entera) o encendida (saliente al rojo y sin la
+        mecha, que se dibuja consumiéndose). Se prepara una vez."""
+        img = self._bomb_images.get(lit)
+        if img is not None:
+            return img
+        img = transparent_layer(self.BOMB_IMG)
+        (cx, cy), r = self.BOMB_BALL
+        pygame.draw.circle(img, (8, 8, 12), (cx, cy), r + 1)                 # contorno
+        pygame.draw.circle(img, S.BOMB_BLACK, (cx, cy), r)
+        pygame.draw.circle(img, (60, 62, 74), (cx - 4, cy - 4), r - 5)       # volumen
+        pygame.draw.circle(img, S.BOMB_BLACK, (cx - 1, cy - 1), r - 4)
+        pygame.draw.ellipse(img, (210, 214, 230), (cx - 9, cy - 9, 7, 5))    # brillo
+        cap = pygame.Rect(cx - 6, cy - r - 5, 12, 7)                         # saliente
+        pygame.draw.rect(img, (8, 8, 12), cap.inflate(2, 2), border_radius=2)
+        pygame.draw.rect(img, S.BOMB_CAP, cap, border_radius=2)
+        pygame.draw.line(img, (150, 154, 170), cap.topleft, (cap.right - 1, cap.top))
+        if lit:                                       # boca del saliente al rojo
+            pygame.draw.rect(img, S.FIRE_ORANGE, (cap.x + 3, cap.y, 6, 2))
+        else:                                         # mecha entera, apagada
+            pygame.draw.lines(img, S.FUSE, False, self.BOMB_FUSE_PTS, 3)
+        self._bomb_images[lit] = img
+        return img
+
+    def _draw_bomb(self, surf, m):
+        img = self._bomb_image(m.lit)
+        box = img.get_rect(midbottom=m.rect.midbottom)
+        if m.lit and m.timer < 1.0 and int(self.t * 12) % 2 == 0:
+            flash = transparent_layer(img.get_size())          # último segundo: parpadea
+            (cx, cy), r = self.BOMB_BALL
+            pygame.draw.circle(flash, (255, 60, 40, 150), (cx, cy), r)
+            surf.blit(img, box)
+            surf.blit(flash, box)
+        else:
+            surf.blit(img, box)
+        if not m.lit:
+            return
+        # Mecha que se consume desde la punta hacia el saliente, con la chispa en el extremo
+        pts = [(box.x + x, box.y + y) for x, y in self.BOMB_FUSE_PTS]
+        k = m.fuse_left
+        seg = (len(pts) - 1) * k
+        i = min(int(seg), len(pts) - 2)
+        f = seg - i
+        tip = (pts[i][0] + (pts[i + 1][0] - pts[i][0]) * f,
+               pts[i][1] + (pts[i + 1][1] - pts[i][1]) * f)
+        burning = pts[:i + 1] + [tip]
+        if len(burning) >= 2:
+            pygame.draw.lines(surf, S.FUSE_BURNT, False, burning, 3)
+        flick = abs(math.sin(self.t * 25))
+        for rad, color in ((6 + 2 * flick, S.FIRE_ORANGE), (3 + flick, S.FIRE_YELLOW),
+                           (1.5, S.WHITE)):
+            pygame.draw.circle(surf, color, tip, rad)
+        for a in range(4):                              # rayitos de la chispa
+            ang = self.t * 9 + a * math.pi / 2
+            end = (tip[0] + math.cos(ang) * (8 + 3 * flick), tip[1] + math.sin(ang) * (8 + 3 * flick))
+            pygame.draw.line(surf, S.FIRE_YELLOW, tip, end, 1)
+        # Cuenta atrás encima
+        secs = max(1, math.ceil(m.timer))
+        self._draw_popup(surf, box.centerx, box.top - 2, str(secs), S.FIRE_YELLOW, 1.0)
+
+    def _draw_smoke(self, surf, x, y, age):
+        """Bocanadas de humo gris: aparecen al pasar el fogonazo, se hinchan, suben despacio
+        y se van difuminando hasta desaparecer. Cada una en su capa para que se mezclen."""
+        start = S.EXPLOSION_TIME * 0.5                 # sale cuando el fuego se apaga
+        if age < start:
+            return
+        k = (age - start) / (S.SMOKE_TIME - start)     # 0 -> 1 durante la vida del humo
+        if k >= 1:
+            return
+        for i in range(S.SMOKE_PUFFS):
+            ang = i * 2.39996                          # ángulo áureo: reparto uniforme
+            spread = S.BOMB_RADIUS * (0.25 + 0.45 * ((i * 37) % 10) / 10)
+            ease = 1 - (1 - k) ** 2                    # sale rápido y frena
+            px = x + math.cos(ang) * spread * (0.4 + 0.6 * ease)
+            py = y + math.sin(ang) * spread * 0.6 * (0.4 + 0.6 * ease) - 55 * k   # sube
+            radius = 14 + 26 * ease + (i % 3) * 4
+            # Aparece rápido y se difumina despacio
+            alpha = 165 * min(1.0, k / 0.12) * (1 - k) ** 1.4
+            if alpha < 3:
+                continue
+            gray = 85 + (i * 23) % 55                  # tonos de gris variados
+            puff = transparent_layer((round(radius * 2) + 2, round(radius * 2) + 2))
+            c = puff.get_width() // 2
+            pygame.draw.circle(puff, (gray, gray, gray + 6, round(alpha)), (c, c), round(radius))
+            pygame.draw.circle(puff, (gray + 30, gray + 30, gray + 36, round(alpha * 0.8)),
+                               (c - radius * 0.3, c - radius * 0.3), round(radius * 0.55))
+            surf.blit(puff, (px - c, py - c))
+
+    def _draw_explosion(self, surf, x, y, age):
+        """Bola de fuego que crece hasta el radio de alcance y se desvanece: llamas con borde
+        irregular, núcleo amarillo y blanco, onda expansiva y cascotes."""
+        k = age / S.EXPLOSION_TIME
+        grow = 1 - (1 - min(1.0, k / 0.35)) ** 2               # crece rápido y frena
+        r = max(4, S.BOMB_RADIUS * grow)
+        fade_k = (1 - k) ** 0.7
+        size = 2 * S.BOMB_RADIUS + 40
+        layer = transparent_layer((size, size))
+        c = size // 2
+
+        def flames(radius, spikes, jag, color, alpha):
+            pts = []
+            for i in range(spikes * 2):
+                ang = i * math.pi / spikes + age * 3
+                rr = radius * (1 + (jag if i % 2 == 0 else -jag * 0.5))
+                pts.append((c + math.cos(ang) * rr, c + math.sin(ang) * rr))
+            pygame.draw.polygon(layer, (*color, round(alpha * fade_k)), pts)
+
+        flames(r, 14, 0.12, (230, 70, 20), 225)                 # llamas rojas exteriores
+        flames(r * 0.78, 12, 0.10, S.FIRE_ORANGE, 240)          # naranja
+        pygame.draw.circle(layer, (*S.FIRE_YELLOW, round(245 * fade_k)), (c, c), round(r * 0.5))
+        if k < 0.5:   # destello blanco al principio: se mezcla el color (no la transparencia,
+            w = 1 - k / 0.5                  # que en una capa sustituye a lo de debajo)
+            core = tuple(round(y + (255 - y) * w) for y in S.FIRE_YELLOW)
+            pygame.draw.circle(layer, (*core, round(245 * fade_k)), (c, c), round(r * 0.3))
+        pygame.draw.circle(layer, (255, 240, 200, round(160 * fade_k)), (c, c),
+                           round(r * 1.08), 3)                  # onda expansiva
+        surf.blit(layer, (x - c, y - c))
+        for i in range(10):                                     # cascotes
+            ang = i * 2 * math.pi / 10 + 0.3
+            d = S.BOMB_RADIUS * 0.95 * grow
+            px, py = x + math.cos(ang) * d, y + math.sin(ang) * d + 40 * k * k
+            pygame.draw.circle(surf, (35, 30, 28), (px, py), 3)
 
     def _draw_coin(self, surf, c):
         """Moneda de oro girando (se estrecha y ensancha) con un brillo."""
