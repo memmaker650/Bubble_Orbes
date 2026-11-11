@@ -93,6 +93,7 @@ def snapshot(w: World) -> dict | None:
         "bubbles": bubbles,
         "medkits": [list(m.cell) for m in w.medkits],    # los que quedan sin coger
         "coins": [list(c.cell) for c in w.coins],
+        "gems": [list(g.cell) for g in w.gems],          # las que quedan sin coger
         "bombs": [[*m.cell, m.lit, m.timer] for m in w.bombs],   # las que no han explotado
     }
 
@@ -155,6 +156,9 @@ def restore(data: dict) -> World:
         if "coins" in data:                            # las ya cogidas no vuelven
             left = {tuple(c) for c in data["coins"]}
             w.coins = [c for c in w.coins if c.cell in left]
+        if "gems" in data:                             # las ya cogidas no vuelven
+            left = {tuple(c) for c in data["gems"]}
+            w.gems = [g for g in w.gems if g.cell in left]
         w.bubbles = []
         for bd in data.get("bubbles", []):
             b = Bubble(0, 0, 1)

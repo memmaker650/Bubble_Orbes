@@ -15,7 +15,7 @@ from .controls import Controls, is_confirm, tap_position
 from .display import opaque_surface
 from . import levels
 from .translations import t
-from .ui import (Button, FlagButton, draw_hearts, draw_message_box, draw_text, fade, fit_font,
+from .ui import (Button, FlagButton, draw_gem, draw_gem_slot, draw_hearts, draw_message_box, draw_text, fade, fit_font,
                  transparent_layer)
 from .world import World
 
@@ -27,6 +27,9 @@ _TOWER_FLAG_H = 46                    # alto del banderín sobre las almenas
 _TOWER_TOP = _TOWER_FLAG_H + 8        # y de las almenas: deja sitio arriba para el banderín
 _HILL_FLAT_W = 100                    # cima plana de la colina (bajo la torre)
 _HILL_FOOT_X = 300                    # donde la ladera llega al borde inferior
+_HUD_LEVEL_SHIFT = 14                 # "Nivel N" desplazado a la derecha del centro
+_HUD_GEMS_GAP = 4                     # aire entre "Nivel N" y las gemas
+_HUD_GEMS_MIN_W = 58                  # ancho mínimo de las 5 gemas del marcador
 _MENU_PLAYER_SCALE = 1.5              # personaje del menú: 50 % más grande que en el juego
 log = logging.getLogger(__name__)
 
@@ -519,6 +522,8 @@ class GameScene(Scene):
             self._draw_medkit(field, m)
         for c in w.coins:
             self._draw_coin(field, c)
+        for g in w.gems:
+            self._draw_gem(field, g)
         for m in w.bombs:
             self._draw_bomb(field, m)
         for e in w.enemies:
@@ -553,9 +558,19 @@ class GameScene(Scene):
         draw_text(surf, self.hud, t("hud.score", score=w.score), S.WHITE,
                   midleft=(S.BORDER, hud_y))
         level = t("hud.tutorial") if w.tutorial else t("hud.level", level=w.number)
-        draw_text(surf, self.hud, level, S.WHITE, center=(S.LOGICAL_W // 2, hud_y))
         # Vidas: un corazón por cada vida de la dificultad; vacíos los ya gastados
         draw_hearts(surf, w.lives, w.max_lives, S.LOGICAL_W - S.BORDER, hud_y)
+        hearts = max(w.max_lives, math.ceil(w.lives))
+        gems_right = S.LOGICAL_W - S.BORDER - hearts * 18 - 6
+        # El nivel, algo a la derecha del centro (deja aire tras los puntos), pero sin
+        # quitarles a las gemas el sitio que necesitan antes de los corazones
+        level_x = S.LOGICAL_W // 2 + _HUD_LEVEL_SHIFT
+        if not w.tutorial:
+            level_x = min(level_x, gems_right - _HUD_GEMS_MIN_W - _HUD_GEMS_GAP
+                          - self.hud.size(level)[0] / 2)
+        level_rect = draw_text(surf, self.hud, level, S.WHITE, center=(level_x, hud_y))
+        if not w.tutorial:
+            self._draw_hud_gems(surf, w, level_rect.right + _HUD_GEMS_GAP, gems_right, hud_y)
 
         for g in w.ghosts:  # suben por encima del marcador hasta salir de la pantalla
             self._draw_ghost(surf, g)
@@ -716,6 +731,34 @@ class GameScene(Scene):
     def _draw_explosion(self, surf, x, y, age):
         """Fogonazo, bola de fuego, onda expansiva, chispas y cascotes (ver effects.py)."""
         effects.draw_explosion(surf, x, y, age, effects.seed_for(x, y))
+
+    def _draw_gem(self, surf, g):
+        """Gema flotando con un halo de su color que late y un destello de vez en cuando."""
+        phase = self.t * 2.2 + g.rect.x * 0.05
+        cx, cy = g.rect.centerx, g.rect.centery + round(math.sin(phase) * 3)
+        color = S.GEM_COLORS[g.kind][0]
+        effects.glow(surf, color, 0.45 + 0.2 * math.sin(phase * 1.3), (cx, cy), g.rect.width)
+        twinkle = max(0.0, math.sin(self.t * 3.1 + g.rect.y * 0.02)) ** 6
+        draw_gem(surf, (cx, cy), g.rect.height, g.kind, sparkle=twinkle)
+
+    @staticmethod
+    def _draw_hud_gems(surf, w, left, right, center_y):
+        """Las cinco gemas del juego en el marcador: rellenas las conseguidas y solo la
+        silueta de las que faltan. Se encogen si no caben entre el nivel y las vidas."""
+        kinds = list(S.GEM_LEVELS.values())
+        owned = set(w.gems_owned)
+        size, gap = 13, 3
+        while size > 8 and len(kinds) * (size + gap) - gap > right - left:
+            size -= 1
+            gap = 2
+        step = size * 0.95 + gap
+        x = left + size * 0.475
+        for kind in kinds:
+            if kind in owned:
+                draw_gem(surf, (x, center_y), size, kind)
+            else:
+                draw_gem_slot(surf, (x, center_y), size)
+            x += step
 
     def _draw_coin(self, surf, c):
         """Moneda de oro girando (se estrecha y ensancha) con un brillo."""

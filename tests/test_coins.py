@@ -187,6 +187,7 @@ def test_completing_level_gives_its_bonus():
         w = World(index_of(number), seed=1)
         for e in w.enemies:
             e.alive = False
+        w.gems = []                     # la del 30 es obligatoria (ver test_gems.py)
         w.player.place(*w.star.rect.topleft)
         step(w, 1)
         assert w.state == "won" and w.level_points == bonus, number

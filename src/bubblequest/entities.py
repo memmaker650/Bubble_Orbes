@@ -660,6 +660,18 @@ class Coin:
         self.taken = False
 
 
+class Gem:
+    """Gema de un color (ver S.GEM_LEVELS). Hay que cogerla para terminar el nivel."""
+
+    def __init__(self, x, y, kind=S.GEM_DEFAULT):
+        s = S.GEM_SIZE
+        self.rect = Rect(0, 0, s, s)
+        self.rect.center = (x + S.TILE // 2, y + S.TILE // 2)
+        self.cell = (x, y)
+        self.kind = kind if kind in S.GEM_COLORS else S.GEM_DEFAULT
+        self.taken = False
+
+
 class Bomb:
     """Bomba: bola negra con mecha. Apagada hasta que se enciende (burbuja o acción encima);
     entonces explota a los BOMB_FUSE segundos. Apoyada en el suelo de su casilla."""

@@ -162,6 +162,7 @@ def test_generated_level_can_be_completed(number):
     w = World(index_of(number), seed=1)
     for e in w.enemies:
         e.alive = False
+    w.gems = []          # aquí se comprueba el camino hasta la estrella (gemas: test_gems.py)
     w.player.invuln = 999
     rows = LEVELS[index_of(number)].rows
     star_row = next(r for r, row in enumerate(rows) if "S" in row)

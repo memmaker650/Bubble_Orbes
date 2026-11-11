@@ -192,6 +192,18 @@ EXPLOSION_TIME = 0.6           # duración del fuego de la explosión
 SMOKE_TIME = 1.8               # el humo gris dura más: se queda flotando y se difumina
 SMOKE_PUFFS = 11               # bocanadas de humo por explosión
 COIN_SIZE = 18
+# Gemas (casilla G): una en los niveles 10, 15, 20, 25 y 30. Son obligatorias: la estrella no
+# termina el nivel hasta cogerla, así que para terminar el 30 hacen falta las cinco.
+GEM_SIZE = 24
+GEM_LEVELS = {10: "ruby", 15: "emerald", 20: "yellow", 25: "aquamarine", 30: "white"}
+GEM_DEFAULT = "white"          # una G en otro nivel
+GEM_COLORS = {                 # (cuerpo, brillo, sombra)
+    "white": ((215, 228, 245), (255, 255, 255), (140, 160, 195)),
+    "emerald": ((25, 170, 90), (140, 245, 175), (8, 100, 52)),
+    "yellow": ((250, 200, 30), (255, 245, 165), (185, 130, 8)),
+    "aquamarine": ((70, 210, 205), (185, 252, 245), (25, 135, 140)),
+    "ruby": ((215, 22, 58), (255, 135, 155), (125, 8, 32)),
+}
 POPUP_TIME = 0.8              # "+100" flotando al coger una moneda
 
 # --- Colores ---

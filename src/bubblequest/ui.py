@@ -89,6 +89,52 @@ def draw_hearts(surf, lives, total, right, center_y, size=14, gap=4):
         draw_heart(surf, (x, center_y), size, filled=fill)
 
 
+def gem_points(center, size):
+    """Silueta de gema tallada (vista de lado): mesa arriba, corona, cintura y pabellón
+    acabado en punta. ``size`` es el alto total; devuelve (mesa_i, mesa_d, cint_d, punta,
+    cint_i) y la altura de la cintura."""
+    cx, cy = center
+    w = size * 0.95
+    top = cy - size * 0.42
+    girdle = top + size * 0.32
+    bottom = cy + size * 0.58
+    pts = [(cx - w * 0.26, top), (cx + w * 0.26, top), (cx + w * 0.5, girdle),
+           (cx, bottom), (cx - w * 0.5, girdle)]
+    return pts, girdle
+
+
+def draw_gem(surf, center, size, kind, sparkle=0.0):
+    """Gema de color ``kind`` (S.GEM_COLORS) con facetas de luz y sombra. ``sparkle`` (0-1)
+    dibuja un destello en forma de estrella en la esquina de la mesa."""
+    body, light, dark = S.GEM_COLORS.get(kind, S.GEM_COLORS[S.GEM_DEFAULT])
+    pts, girdle = gem_points(center, size)
+    tl, tr, gr, tip, gl = pts
+    cx = center[0]
+    inner_l, inner_r = (cx - size * 0.14, girdle), (cx + size * 0.14, girdle)
+    pygame.draw.polygon(surf, body, pts)
+    pygame.draw.polygon(surf, light, [tl, tr, inner_r, inner_l])          # mesa (clara)
+    pygame.draw.polygon(surf, dark, [gl, inner_l, tip])                    # pabellón izq.
+    mid = tuple((a + b) // 2 for a, b in zip(body, light))
+    pygame.draw.polygon(surf, mid, [inner_r, gr, tip])                     # pabellón der.
+    if size >= 14:                                                         # aristas
+        for a, b in ((tl, inner_l), (tr, inner_r), (inner_l, tip), (inner_r, tip),
+                     (gl, gr)):
+            pygame.draw.line(surf, dark, a, b, 1)
+    pygame.draw.polygon(surf, dark, pts, 1)
+    if sparkle > 0:
+        sx, sy = tl[0] + size * 0.06, tl[1] + size * 0.04
+        arm = size * 0.32 * sparkle
+        pygame.draw.line(surf, (255, 255, 255), (sx - arm, sy), (sx + arm, sy), 1)
+        pygame.draw.line(surf, (255, 255, 255), (sx, sy - arm), (sx, sy + arm), 1)
+        pygame.draw.circle(surf, (255, 255, 255), (sx, sy), max(1, round(size * 0.06)))
+
+
+def draw_gem_slot(surf, center, size):
+    """Hueco de una gema aún no conseguida: solo la silueta, apagada."""
+    pts, _ = gem_points(center, size)
+    pygame.draw.polygon(surf, S.HEART_EMPTY, pts, 1)
+
+
 _fonts: dict = {}
 
 

@@ -7,7 +7,7 @@ import random
 from pygame import Rect
 
 from . import settings as S
-from .entities import ENEMY_TYPES, Bomb, Bubble, Coin, Ghost, Medkit, Player, Star
+from .entities import ENEMY_TYPES, Bomb, Bubble, Coin, Gem, Ghost, Medkit, Player, Star
 from . import levels
 from .levels import parse_level
 
@@ -103,6 +103,7 @@ class World:
         self.medkits = [Medkit(x, y) for x, y in data.medkits]
         self.coins = [Coin(x, y) for x, y in data.coins]
         self.bombs = [Bomb(x, y) for x, y in data.bombs]
+        self.gems = [Gem(x, y, self.gem_kind) for x, y in data.gems]
         self.explosions: list = []   # animaciones de explosión: [x, y, tiempo]
         self.popups: list = []       # textos flotantes ("+100"): [x, y, tiempo, texto, color]
         self.camera_y = 0.0
@@ -214,6 +215,7 @@ class World:
         self._rescue_escaped()
         self._check_medkits()
         self._check_coins()
+        self._check_gems()
         self._check_player_hit()
         if self.enemies_left == 0:
             self._tutorial_event("clear")
@@ -249,14 +251,16 @@ class World:
 
     # --- estrella ---
     def _check_star(self):
-        if self.star is None:  # nivel sin estrella: se gana al vaciarlo
-            if self.enemies_left == 0:
+        if self.star is None:  # nivel sin estrella: se gana al vaciarlo (y con la gema)
+            if self.enemies_left == 0 and not self.gems:
                 self._win()
             return
         touching = self.player.rect.colliderect(self.star.rect)
         if touching and not self._touching_star:  # solo al empezar a tocarla
             if self.enemies_left > 0:
                 self.show_message("star.kill_all")
+            elif self.gems:
+                self.show_message("star.gem_needed")
             else:
                 self.star.lit = True
                 self._win()
@@ -388,6 +392,34 @@ class World:
             self.lives = min(self.max_lives, self.lives + S.MEDKIT_HEAL)
             m.taken = True
         self.medkits = [m for m in self.medkits if not m.taken]
+
+    # --- gemas ---
+    @property
+    def gem_kind(self) -> str:
+        """Color de la gema de este nivel."""
+        return S.GEM_LEVELS.get(self.number, S.GEM_DEFAULT)
+
+    @property
+    def gems_owned(self) -> list:
+        """Colores de las gemas que lleva el jugador, en orden. Como son obligatorias, son las
+        de los niveles anteriores con gema y, si ya la ha cogido, la de este."""
+        owned = []
+        for lv in levels.LEVELS:
+            if lv.tutorial or lv.number > self.number or not any("G" in r for r in lv.rows):
+                continue
+            if lv.number == self.number and self.gems:      # la de este nivel, aún sin coger
+                continue
+            owned.append(S.GEM_LEVELS.get(lv.number, S.GEM_DEFAULT))
+        return owned
+
+    def _check_gems(self):
+        p = self.player
+        for g in self.gems:
+            if not g.taken and p.rect.colliderect(g.rect):
+                g.taken = True
+                self.show_message(f"gem.taken.{g.kind}")
+                log.info("Gema %s cogida en el nivel %s", g.kind, self.number)
+        self.gems = [g for g in self.gems if not g.taken]
 
     def _check_coins(self):
         """Coger una moneda da POINTS_COIN puntos."""

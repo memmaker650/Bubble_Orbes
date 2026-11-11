@@ -97,20 +97,21 @@ fichero. `python -m bubblequest.level_generator` crea los que falten **sin sobre
 | `=`      | Plataforma fina: se atraviesa saltando desde abajo y bajando con la flecha abajo.   |
 | `L`      | Ladrillo/cemento: sólido que sirve de parapeto (bloquea el paso, la vista de los enemigos, la lengua, el láser y las burbujas). |
 | `P`      | Inicio del jugador (uno por nivel, obligatorio).                                    |
-| `S`      | Estrella de fin de nivel: con todos los enemigos eliminados, al tocarla se completa. |
+| `S`      | Estrella de fin de nivel: con todos los enemigos eliminados (y la gema cogida, si la hay), al tocarla se completa. |
 | `E`      | Enemigo rojo: ataca sacando la lengua.                                              |
 | `A`      | Enemigo azul: ataca con un láser por los ojos.                                      |
 | `N`      | Enemigo naranja: cuerpo a cuerpo con un cuchillo (cuchillada al tenerte pegado, ~46 px); se agacha para esquivar las burbujas que le vienen de frente (no siempre). |
 | `H`      | Botiquín: recupera un corazón (no se coge con la vida al completo).                 |
 | `C`      | Moneda de oro: +100 puntos.                                                         |
 | `B`      | Bomba: se enciende al golpearla con una burbuja o pulsando la acción encima; a los 3 s explota y elimina a los enemigos a menos de ~140 px (3,5 casillas). |
+| `G`      | Gema: obligatoria para terminar el nivel. Su color depende del nivel (10 rubí, 15 esmeralda, 20 amarilla, 25 aguamarina, 30 blanca). |
 
 Reglas del mapa:
 
 - **9 columnas** por fila y **16 filas o más**. Con más de 16 el nivel es más alto que la pantalla
   y se hace scroll vertical (limitado al alto del mapa).
 - Solo se describe el **interior**: los bordes (finos) se añaden solos alrededor.
-- Enemigos, botiquines y monedas conviene ponerlos justo **encima de una plataforma** (`=`).
+- Enemigos, botiquines, monedas, bombas y gemas conviene ponerlos justo **encima de una plataforma** (`=`).
 - Un salto completo (doble pulsación) sube unas **3 filas**: las plataformas deben estar como mucho
   a 3 filas unas de otras para poder subir.
 - El jugador puede empezar **abajo** (la estrella arriba), **arriba del todo** (la estrella abajo
@@ -174,6 +175,30 @@ JSON: al cargar el nivel, cada `B` se convierte en una bomba apagada en esa casi
   (hasta 45 filas) y **2 en los niveles 13 a 30**, donde más enemigos quedan a su alcance, lejos
   del inicio del jugador. En los niveles 1 a 9 no hay bombas, pero se pueden añadir a mano con `B`.
 - Ajustes en `settings.py`: `BOMB_FUSE`, `BOMB_RADIUS`, `EXPLOSION_TIME`, `SMOKE_TIME`.
+
+### Gemas (`G`)
+
+Para dar continuidad a la partida, el jugador va reuniendo **cinco gemas**, una cada cinco
+niveles, y necesita las cinco para terminar el nivel 30:
+
+| Nivel | Gema |
+|-------|------|
+| 10 | rojo rubí |
+| 15 | verde esmeralda |
+| 20 | amarilla |
+| 25 | azul aguamarina |
+| 30 | blanca |
+
+- Se define con el carácter **`G`** en el `map`, justo encima de una plataforma. El color no se
+  escribe en el JSON: lo da el número del nivel (`GEM_LEVELS` en `settings.py`).
+- **Es obligatoria:** con la gema sin coger, la estrella no termina el nivel y avisa con
+  "Coge la gema para terminar el nivel" (después del aviso de eliminar a todos los enemigos).
+  Así nunca se llega al 30 sin las cuatro anteriores, y la blanca es la última que falta.
+- La primera es la de rubí y la última la blanca: así, en el marcador, la roja no se pega a
+  los corazones (también rojos).
+- En el marcador, entre el nivel y las vidas, se ven las cinco: rellenas las conseguidas y
+  solo la silueta de las que faltan. Al cogerla aparece un aviso con su nombre.
+- Si se guarda la partida a mitad de nivel, la gema ya cogida no vuelve a aparecer.
 
 ## Desarrollo
 
