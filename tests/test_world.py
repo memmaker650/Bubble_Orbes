@@ -69,7 +69,7 @@ def test_bubble_traps_then_pop_scores():
     p.place(*bubble.rect.topleft)
     step(w, 1)
     assert not e.alive
-    assert w.score >= S.POINTS_ENEMY
+    assert w.score >= S.enemy_points(e.kind)
 
 
 def test_trapped_enemy_escapes_angry():
@@ -150,8 +150,8 @@ def test_star_after_enemies_dead_wins_level():
     step(w, 1)
     assert w.state == "won"
     assert w.star.lit
-    assert w.score == S.POINTS_LEVEL
-    assert w.level_points == S.POINTS_LEVEL
+    assert w.score == S.level_bonus(1) == 200
+    assert w.level_points == S.level_bonus(1)
     assert w.elapsed > 0.4
 
 

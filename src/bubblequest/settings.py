@@ -164,8 +164,24 @@ KNOCKBACK_SPEED = 220.0        # empujón al ser herido por contacto...
 KNOCKBACK_TIME = 0.18          # ...durante este tiempo (sin control horizontal)
 RESUME_INVULN = 2.0            # invulnerable al retomar una partida guardada
 POINTS_BUBBLE = 10
-POINTS_ENEMY = 100
-POINTS_LEVEL = 500
+# Puntos por eliminar un enemigo, según su tipo
+POINTS_ENEMY = {"knife": 100,      # naranja (cuchillo)
+                "tongue": 200,     # rojo (lengua)
+                "laser": 300}      # azul (láser por los ojos)
+# Bonificación por terminar un nivel: (último nivel del tramo, puntos)
+LEVEL_BONUS = ((5, 200), (10, 300), (15, 400), (20, 500), (27, 600), (29, 700), (30, 1000))
+
+
+def enemy_points(kind) -> int:
+    return POINTS_ENEMY[kind]
+
+
+def level_bonus(number) -> int:
+    """Puntos por terminar el nivel `number` (el tutorial cuenta como el primer tramo)."""
+    for last, points in LEVEL_BONUS:
+        if number <= last:
+            return points
+    return LEVEL_BONUS[-1][1]
 POINTS_COIN = 100
 # Bombas (niveles 10+): se encienden con una burbuja o pulsando la acción encima de ellas y
 # explotan a los BOMB_FUSE segundos, eliminando a los enemigos a menos de BOMB_RADIUS.

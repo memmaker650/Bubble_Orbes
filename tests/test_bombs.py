@@ -117,7 +117,7 @@ def test_explosion_kills_enemies_in_radius_in_any_direction():
     score = w.score
     w.explode(m)
     assert not near_side.alive and not near_up.alive and far.alive
-    assert w.score == score + 2 * S.POINTS_ENEMY
+    assert w.score == score + S.enemy_points(near_side.kind) + S.enemy_points(near_up.kind)
     assert len(w.ghosts) == 2 and len(w.popups) == 2
 
 

@@ -264,7 +264,7 @@ class World:
 
     def _win(self):
         self.state = "won"
-        self.score += S.POINTS_LEVEL
+        self.score += S.level_bonus(self.number)
         # Superar un nivel da un corazón (sin pasar del máximo). En el tutorial no: al
         # terminarlo, el nivel 1 empieza con la vida inicial.
         before = self.lives
@@ -334,11 +334,12 @@ class World:
                     self._expire(b)
 
     def _kill_enemy(self, e):
-        """Elimina un enemigo: fantasma que sube, puntos y "+100" en su color."""
+        """Elimina un enemigo: fantasma que sube, sus puntos (según el tipo) y el "+N" en su color."""
         e.alive = False
         self.ghosts.append(Ghost(e))
-        self.score += S.POINTS_ENEMY
-        self.popup(e.rect.centerx, e.rect.top, S.POINTS_ENEMY, S.enemy_color(e.kind, e.angry))
+        points = S.enemy_points(e.kind)
+        self.score += points
+        self.popup(e.rect.centerx, e.rect.top, points, S.enemy_color(e.kind, e.angry))
 
     def _pop(self, b):
         if b.captured is not None:

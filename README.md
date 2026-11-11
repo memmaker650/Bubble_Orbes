@@ -20,6 +20,26 @@ falta para subir de una plataforma a la siguiente). Los saltos atraviesan las pl
 desde abajo y la flecha abajo las atraviesa hacia abajo. Si dejas un orbe con enemigo demasiado
 tiempo, el enemigo se libera enfadado.
 
+## Puntuación
+
+| Qué | Puntos |
+|-----|--------|
+| Enemigo naranja (cuchillo) | 100 |
+| Enemigo rojo (lengua) | 200 |
+| Enemigo azul (láser) | 300 |
+| Moneda de oro | 100 |
+| Burbuja vacía reventada | 10 |
+| Terminar un nivel del 1 al 5 | 200 |
+| Terminar un nivel del 6 al 10 | 300 |
+| Terminar un nivel del 11 al 15 | 400 |
+| Terminar un nivel del 16 al 20 | 500 |
+| Terminar un nivel del 21 al 27 | 600 |
+| Terminar el nivel 28 o 29 | 700 |
+| Terminar el nivel 30 | 1000 |
+
+Los enemigos dan sus puntos tanto al reventar su burbuja como al eliminarlos con una bomba. Los
+valores están en `settings.py` (`POINTS_ENEMY`, `LEVEL_BONUS`, `POINTS_COIN`, `POINTS_BUBBLE`).
+
 ## Estructura
 
 ```
