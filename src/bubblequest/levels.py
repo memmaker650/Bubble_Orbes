@@ -8,8 +8,10 @@ tiene más de 16, el nivel es más alto que la pantalla y se hace scroll vertica
   L  ladrillo/cemento: sólido que además sirve de parapeto (bloquea ataques y visión)
   H  botiquín: recupera un corazón
   C  moneda de oro: +100 puntos
+  B  bomba: se enciende con una burbuja o con la acción encima; explota a los 3 s
   P  inicio del jugador E  enemigo rojo (lengua)
-  B  enemigo azul (láser por los ojos)
+  A  enemigo azul (láser por los ojos)
+  N  enemigo naranja (cuchillo, cuerpo a cuerpo; se agacha para esquivar burbujas)
   S  estrella de fin de nivel
 """
 
@@ -92,6 +94,7 @@ class LevelData:
     rows: int = 0
     medkits: list = field(default_factory=list)  # posiciones (casillas) de los botiquines
     coins: list = field(default_factory=list)    # posiciones (casillas) de las monedas
+    bombs: list = field(default_factory=list)    # posiciones (casillas) de las bombas
 
 
 def border_walls(height=S.FIELD_H) -> list:
@@ -111,7 +114,7 @@ def parse_level(rows) -> LevelData:
         raise ValueError(f"El nivel debe tener al menos {S.ROWS} filas, tiene {len(rows)}")
     height = S.level_height(len(rows))
     solids, oneway, enemies, spawn, star = border_walls(height), [], [], None, None
-    bricks, medkits, coins = [], [], []
+    bricks, medkits, coins, bombs = [], [], [], []
     for r, row in enumerate(rows):
         if len(row) != S.COLS:
             raise ValueError(f"Fila {r}: debe tener {S.COLS} columnas")
@@ -127,7 +130,7 @@ def parse_level(rows) -> LevelData:
                 oneway.append(Rect(x, y, S.TILE, 12))
             elif ch == "P":
                 spawn = (x, y)
-            elif ch in "EB":
+            elif ch in "EAN":
                 enemies.append((x, y, ch))
             elif ch == "S":
                 star = (x, y)
@@ -135,12 +138,14 @@ def parse_level(rows) -> LevelData:
                 medkits.append((x, y))
             elif ch == "C":
                 coins.append((x, y))
+            elif ch == "B":
+                bombs.append((x, y))
             elif ch != " ":
                 raise ValueError(f"Fila {r}, columna {c}: carácter desconocido {ch!r}")
     if spawn is None:
         raise ValueError("El nivel no tiene inicio de jugador 'P'")
     return LevelData(solids, oneway, spawn, enemies, star, bricks, height, len(rows), medkits,
-                     coins)
+                     coins, bombs)
 
 
 _cache: list | None = None

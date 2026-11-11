@@ -203,12 +203,20 @@ class Enemy(Body):
         self.sight_t = 0.0           # tiempo seguido viendo al jugador
         self.tired = False           # cansado tras atacar (enemigo de la lengua)
         self.super_attack = False    # el ataque en curso es el súper (más alcance, más recarga)
+        self.zone = None             # (y de arriba, y de abajo) de su zona, o None (sin límite)
+        self.crouch_t = 0.0          # agachado (esquivando una burbuja): tiempo que le queda
+        self.crouch_cd = 0.0         # tiempo hasta poder volver a agacharse
+
+    @property
+    def crouching(self) -> bool:
+        return self.crouch_t > 0
 
     @property
     def attacking(self) -> bool:
         return self.attack is not None
 
     def trap(self):
+        self.crouch_t = 0.0
         self.state = "trapped"
         self.vx = self.vy = 0.0
         self.attack = None
@@ -255,6 +263,12 @@ class Enemy(Body):
         ``predicted``: dónde estará el jugador en breve (ataques preventivos, difícil)."""
         if self.state != "walk":
             return
+        self.crouch_cd = max(0.0, self.crouch_cd - dt)
+        if self.crouching:              # agachado: quieto, sin atacar, hasta levantarse
+            self.crouch_t = max(0.0, self.crouch_t - dt)
+            self.vx = 0.0
+            self.physics(dt, solids, oneway)
+            return
         self.cooldown = max(0.0, self.cooldown - dt)
         if self.cooldown <= 0:
             self.tired = False       # ya se ha recuperado
@@ -284,14 +298,40 @@ class Enemy(Body):
         speed = self.speed * (S.ENEMY_ANGRY_FACTOR if self.angry else 1.0)
         if self.tired:
             speed *= S.TIRED_SPEED
+        stay = self._ground_ahead(solids, oneway)
+        if self.coyote > 0 and not stay:
+            self.direction *= -1            # caería fuera de su zona: se da la vuelta
         self.vx = self.direction * speed
+        if self.coyote <= 0 and not stay:
+            self.vx = 0.0                   # en el aire: no se aleja del borde (cae donde saltó)
         self.jump_cd -= dt
         if self.jump_cd <= 0 and self.coyote > 0:
-            self.vy = -S.JUMP_V
-            self.coyote = 0.0
+            if self._jump_stays_in_zone():
+                self.vy = -S.JUMP_V
+                self.coyote = 0.0
             self.jump_cd = self.rng.uniform(1.5, 4.0)
         if self.physics(dt, solids, oneway):
             self.direction *= -1
+
+    # --- zona ---
+    def _ground_ahead(self, solids, oneway) -> bool:
+        """¿Hay suelo delante sin salir de su zona? Mira bajo el borde por el que avanza,
+        desde sus pies hasta el fondo de la zona. Sin zona, siempre True."""
+        if self.zone is None:
+            return True
+        top, bottom = self.zone
+        if self.rect.bottom > bottom:        # ya está por debajo (no debería): no lo bloquea
+            return True
+        x = self.rect.right + 2 if self.direction > 0 else self.rect.left - 3
+        y0 = self.rect.bottom
+        return any(s.left <= x < s.right and y0 - 1 <= s.top <= bottom
+                   for s in (*solids, *oneway))
+
+    def _jump_stays_in_zone(self) -> bool:
+        """No salta hacia plataformas de otra zona (por encima de la suya)."""
+        if self.zone is None:
+            return True
+        return self.rect.bottom - 3 * S.TILE >= self.zone[0]
 
     def _start_attack(self, solids):
         pass
@@ -428,7 +468,78 @@ class LaserEnemy(Enemy):
         return Rect(left, ey - 4, right - left, 8)
 
 
-ENEMY_TYPES = {"E": TongueEnemy, "B": LaserEnemy}
+class KnifeEnemy(Enemy):
+    """Naranja: ataca cuerpo a cuerpo con un cuchillo (lanza la cuchillada, la mantiene un
+    instante y la retrae) y se agacha para que las burbujas le pasen por encima."""
+
+    kind = "knife"
+    SIGHT = S.KNIFE_REACH + S.KNIFE_REST + 28   # ataca si estás al alcance (centro a centro)
+    NORMAL_REACH = 10 ** 6              # no tiene súper ataque
+    HAND_Y = 19                         # altura de la mano (y del cuchillo) dentro del cuerpo
+
+    def _start_attack(self, solids):
+        self.attack = "stab"
+
+    def _attack_step(self, solids):
+        if self.attack_t >= S.STAB_OUT + S.STAB_HOLD + S.STAB_IN:
+            self._end_attack(S.KNIFE_COOLDOWN)
+
+    @property
+    def stab_phase(self) -> str | None:
+        """"out" (lanzando), "hold" (estirado), "in" (retrayendo) o None."""
+        if self.attack != "stab":
+            return None
+        if self.attack_t < S.STAB_OUT:
+            return "out"
+        if self.attack_t < S.STAB_OUT + S.STAB_HOLD:
+            return "hold"
+        return "in"
+
+    @property
+    def stab_extension(self) -> float:
+        """Cuánto está estirado el brazo con el cuchillo: 0 (recogido) a 1 (estirado)."""
+        phase, t = self.stab_phase, self.attack_t
+        if phase == "out":
+            return t / S.STAB_OUT
+        if phase == "hold":
+            return 1.0
+        if phase == "in":
+            return max(0.0, 1.0 - (t - S.STAB_OUT - S.STAB_HOLD) / S.STAB_IN)
+        return 0.0
+
+    def hand(self):
+        x = self.rect.right if self.direction > 0 else self.rect.left
+        return x, self.rect.y + self.HAND_Y
+
+    def knife_reach(self) -> float:
+        """Distancia de la punta del cuchillo al cuerpo (la misma que se dibuja)."""
+        return S.KNIFE_REST + S.KNIFE_REACH * self.stab_extension
+
+    def attack_rect(self):
+        """Zona que hace daño: del cuerpo a la punta del cuchillo, solo durante la cuchillada
+        (en reposo el cuchillo no hace daño; tocarle es un contacto normal)."""
+        if self.stab_extension < 0.35:   # el cuchillo aún no ha salido lo bastante
+            return None
+        hx, hy = self.hand()
+        length = round(self.knife_reach())
+        x = hx if self.direction > 0 else hx - length
+        return Rect(x, hy - 4, length, 8)
+
+    def try_dodge(self, rng):
+        """Ve venir una burbuja. Devuelve None si ahora no puede decidir (en el aire,
+        atacando, recuperándose de agacharse...), y se volverá a mirar en el siguiente
+        fotograma; True si se agacha; False si decide no hacerlo (a veces no le da tiempo)."""
+        if (self.crouching or self.crouch_cd > 0 or self.attacking or self.state != "walk"
+                or self.coyote <= 0):
+            return None
+        self.crouch_cd = S.CROUCH_COOLDOWN       # lo intente o no, no vuelve a probar enseguida
+        if rng.random() >= S.DODGE_CHANCE:
+            return False
+        self.crouch_t = S.CROUCH_TIME
+        return True
+
+
+ENEMY_TYPES = {"E": TongueEnemy, "A": LaserEnemy, "N": KnifeEnemy}
 
 
 class Bubble:
@@ -443,6 +554,7 @@ class Bubble:
         self.life = S.BUBBLE_EMPTY_LIFE
         self.age = 0.0
         self.captured = None     # Enemy atrapado, si hay
+        self.dodge_seen = set()  # enemigos que ya decidieron si esquivarla (id)
 
     @property
     def armed(self) -> bool:
@@ -546,3 +658,29 @@ class Coin:
         self.rect.center = (x + S.TILE // 2, y + S.TILE // 2)
         self.cell = (x, y)
         self.taken = False
+
+
+class Bomb:
+    """Bomba: bola negra con mecha. Apagada hasta que se enciende (burbuja o acción encima);
+    entonces explota a los BOMB_FUSE segundos. Apoyada en el suelo de su casilla."""
+
+    def __init__(self, x, y):
+        s = S.BOMB_SIZE
+        self.rect = Rect(0, 0, s, s)
+        self.rect.midbottom = (x + S.TILE // 2, y + S.TILE)
+        self.cell = (x, y)
+        self.lit = False
+        self.timer = S.BOMB_FUSE        # segundos que le quedan a la mecha
+
+    def light(self) -> bool:
+        """Enciende la mecha. Devuelve True si estaba apagada."""
+        if self.lit:
+            return False
+        self.lit = True
+        self.timer = S.BOMB_FUSE
+        return True
+
+    @property
+    def fuse_left(self) -> float:
+        """1 con la mecha entera, 0 a punto de explotar."""
+        return max(0.0, self.timer / S.BOMB_FUSE) if self.lit else 1.0

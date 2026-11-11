@@ -39,7 +39,7 @@
     <text key="tutorial.trap">Lanza una burbuja contra un enemigo para atraparlo</text>
     <text key="tutorial.pop">Toca la burbuja con el enemigo dentro para reventarla</text>
     <text key="tutorial.clear">Elimina a todos los enemigos</text>
-    <text key="tutorial.star">Ahora toca la estrella para terminar el nivel</text>
+    <text key="tutorial.star">Sube: el nivel sigue hacia arriba. Busca la estrella y tócala</text>
     <text key="menu.continue">Continuar (nivel {level})</text>
     <text key="menu.continue_tutorial">Continuar (tutorial)</text>
     <text key="play.title">Nueva partida</text>
@@ -88,7 +88,7 @@
     <text key="tutorial.trap">Hit an enemy with a bubble to trap it</text>
     <text key="tutorial.pop">Touch the bubble with the enemy inside to pop it</text>
     <text key="tutorial.clear">Defeat all the enemies</text>
-    <text key="tutorial.star">Now touch the star to finish the level</text>
+    <text key="tutorial.star">Climb up: the level goes on above. Find the star and touch it</text>
     <text key="menu.continue">Continue (level {level})</text>
     <text key="menu.continue_tutorial">Continue (tutorial)</text>
     <text key="play.title">New game</text>
@@ -137,7 +137,7 @@
     <text key="tutorial.trap">Touchez un ennemi avec une bulle pour le piéger</text>
     <text key="tutorial.pop">Touchez la bulle qui contient l'ennemi pour l'éclater</text>
     <text key="tutorial.clear">Éliminez tous les ennemis</text>
-    <text key="tutorial.star">Touchez maintenant l'étoile pour finir le niveau</text>
+    <text key="tutorial.star">Montez : le niveau continue vers le haut. Trouvez l'étoile et touchez-la</text>
     <text key="menu.continue">Continuer (niveau {level})</text>
     <text key="menu.continue_tutorial">Continuer (tutoriel)</text>
     <text key="play.title">Nouvelle partie</text>

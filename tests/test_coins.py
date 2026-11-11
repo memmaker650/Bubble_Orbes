@@ -6,6 +6,7 @@ from bubblequest import settings as S
 from bubblequest.level_generator import place_coins
 from bubblequest.levels import LEVELS, index_of, parse_level
 from bubblequest.world import World
+from enemy_helpers import enemy_of  # noqa: E402
 
 DT = 1 / 60
 
@@ -19,7 +20,7 @@ def test_every_level_has_two_or_three_coins_by_size():
     for lv in LEVELS:
         coins = sum(row.count("C") for row in lv.rows)
         if lv.tutorial:
-            assert coins == 0
+            assert coins == 2                    # el tutorial tiene su propio mapa con 2
         else:
             assert coins == (2 if len(lv.rows) <= 20 else 3), lv.number
 
@@ -65,7 +66,7 @@ def test_coin_points_count_for_level_points():
         step(w, 1)
     w.player.place(*w.star.rect.topleft)
     step(w, 1)
-    assert w.level_points == 2 * S.POINTS_COIN + S.POINTS_LEVEL
+    assert w.level_points == 2 * S.POINTS_COIN + S.level_bonus(1)
 
 
 def test_place_coins_keeps_everything_else_and_is_idempotent():
@@ -104,7 +105,7 @@ from bubblequest.entities import Bubble, LaserEnemy, TongueEnemy  # noqa: E402
 
 def _pop_enemy(cls, angry=False):
     w = World(1, seed=1)
-    e = next(x for x in w.enemies if isinstance(x, cls))
+    e = enemy_of(w, cls)
     e.angry = angry
     b = Bubble(*e.rect.center, 1)
     e.trap()
@@ -123,9 +124,10 @@ def _pop_enemy(cls, angry=False):
 ])
 def test_killing_enemy_shows_points_in_its_color(cls, angry, color):
     w, e, score = _pop_enemy(cls, angry)
-    assert w.score == score + S.POINTS_ENEMY
+    points = S.enemy_points(e.kind)
+    assert w.score == score + points
     x, y, age, text, popup_color = w.popups[-1]
-    assert text == f"+{S.POINTS_ENEMY}" and popup_color == color
+    assert text == f"+{points}" and popup_color == color
     assert x == e.rect.centerx
 
 
@@ -141,3 +143,50 @@ def test_coin_popup_is_gold_and_empty_bubble_has_none():
     w.bubbles = [b]
     w._pop(b)                                     # burbuja vacía: sin texto
     assert not w.popups
+
+
+
+# --- puntos por tipo de enemigo y por nivel ---
+
+def test_points_per_enemy_kind():
+    assert S.enemy_points("knife") == 100              # naranja
+    assert S.enemy_points("tongue") == 200             # rojo (lengua)
+    assert S.enemy_points("laser") == 300              # azul (láser)
+
+
+@pytest.mark.parametrize("cls,points", [("KnifeEnemy", 100), ("TongueEnemy", 200),
+                                        ("LaserEnemy", 300)])
+def test_killing_each_kind_gives_its_points_and_popup(cls, points):
+    from bubblequest import entities
+    w, e, score = _pop_enemy(getattr(entities, cls))
+    assert w.score == score + points and w.popups[-1][3] == f"+{points}"
+
+
+def test_bomb_gives_each_enemy_its_own_points():
+    from bubblequest import entities
+    from bubblequest.entities import Bomb
+    w = World(1, seed=1)
+    bomb = Bomb(*S.cell_pos(4, 9))
+    w.bombs = [bomb]
+    kinds = [entities.KnifeEnemy, entities.TongueEnemy, entities.LaserEnemy]
+    w.enemies = [k(*S.cell_pos(4, 9), 50, w.rng) for k in kinds]
+    score = w.score
+    w.explode(bomb)
+    assert w.score == score + 100 + 200 + 300
+
+
+@pytest.mark.parametrize("number,bonus", [
+    (0, 200), (1, 200), (5, 200), (6, 300), (10, 300), (11, 400), (15, 400), (16, 500),
+    (20, 500), (21, 600), (27, 600), (28, 700), (29, 700), (30, 1000)])
+def test_level_bonus_table(number, bonus):
+    assert S.level_bonus(number) == bonus
+
+
+def test_completing_level_gives_its_bonus():
+    for number, bonus in ((3, 200), (12, 400), (30, 1000)):
+        w = World(index_of(number), seed=1)
+        for e in w.enemies:
+            e.alive = False
+        w.player.place(*w.star.rect.topleft)
+        step(w, 1)
+        assert w.state == "won" and w.level_points == bonus, number

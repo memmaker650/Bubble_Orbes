@@ -74,6 +74,22 @@ LASER_DURATION = 1.0           # el rayo dura 1 s
 LASER_RECHARGE = 4.0           # y necesita 4 s para recargar
 LASER_REACH_NORMAL = 180       # ataque normal: hasta la mitad del ancho; súper: hasta el muro
 
+# Zonas de enemigos (niveles con scroll): el nivel se divide en franjas horizontales de unas
+# ZONE_ROWS filas y cada enemigo no sale de la suya (evita que se amontonen abajo).
+ZONE_ROWS = 15
+
+# Enemigo naranja: cuchillo (cuerpo a cuerpo) y se agacha para esquivar burbujas
+KNIFE_REACH = 26               # lo que sale el cuchillo al lanzar la cuchillada...
+KNIFE_REST = 20                # ...desde su posición de reposo (punta a 20 px del cuerpo)
+STAB_OUT = 0.12                # lanzar la cuchillada
+STAB_HOLD = 0.12               # cuchillo estirado
+STAB_IN = 0.25                 # retraer la cuchillada
+KNIFE_COOLDOWN = 1.0
+DODGE_RANGE = 110              # ve venir una burbuja a esta distancia...
+DODGE_CHANCE = 0.7             # ...y se agacha a veces (no siempre: si no, sería invencible)
+CROUCH_TIME = 0.55             # tiempo agachado (la burbuja le pasa por encima)
+CROUCH_COOLDOWN = 1.6          # tiempo antes de poder volver a agacharse
+
 # Ataque normal: si el jugador está cerca (dentro del alcance normal); recarga normal.
 # Súper ataque: si está más lejos (hasta el alcance máximo); recarga este número de veces más.
 SUPER_COOLDOWN_FACTOR = 2.0
@@ -148,9 +164,33 @@ KNOCKBACK_SPEED = 220.0        # empujón al ser herido por contacto...
 KNOCKBACK_TIME = 0.18          # ...durante este tiempo (sin control horizontal)
 RESUME_INVULN = 2.0            # invulnerable al retomar una partida guardada
 POINTS_BUBBLE = 10
-POINTS_ENEMY = 100
-POINTS_LEVEL = 500
+# Puntos por eliminar un enemigo, según su tipo
+POINTS_ENEMY = {"knife": 100,      # naranja (cuchillo)
+                "tongue": 200,     # rojo (lengua)
+                "laser": 300}      # azul (láser por los ojos)
+# Bonificación por terminar un nivel: (último nivel del tramo, puntos)
+LEVEL_BONUS = ((5, 200), (10, 300), (15, 400), (20, 500), (27, 600), (29, 700), (30, 1000))
+
+
+def enemy_points(kind) -> int:
+    return POINTS_ENEMY[kind]
+
+
+def level_bonus(number) -> int:
+    """Puntos por terminar el nivel `number` (el tutorial cuenta como el primer tramo)."""
+    for last, points in LEVEL_BONUS:
+        if number <= last:
+            return points
+    return LEVEL_BONUS[-1][1]
 POINTS_COIN = 100
+# Bombas (niveles 10+): se encienden con una burbuja o pulsando la acción encima de ellas y
+# explotan a los BOMB_FUSE segundos, eliminando a los enemigos a menos de BOMB_RADIUS.
+BOMB_SIZE = 26
+BOMB_FUSE = 3.0
+BOMB_RADIUS = 140              # ~2,5 cm en un iPhone (el ancho del juego, 384 px, son ~6,5-7 cm)
+EXPLOSION_TIME = 0.6           # duración del fuego de la explosión
+SMOKE_TIME = 1.8               # el humo gris dura más: se queda flotando y se difumina
+SMOKE_PUFFS = 11               # bocanadas de humo por explosión
 COIN_SIZE = 18
 POPUP_TIME = 0.8              # "+100" flotando al coger una moneda
 
@@ -171,12 +211,20 @@ ENEMY = (235, 90, 90)
 ENEMY_BLUE = (80, 130, 240)
 ENEMY_ANGRY = (255, 60, 60)
 ENEMY_BLUE_ANGRY = (40, 90, 255)
+ENEMY_ORANGE = (250, 150, 40)
+ENEMY_ORANGE_ANGRY = (255, 105, 0)
+KNIFE_BLADE = (200, 206, 220)
+KNIFE_EDGE = (245, 248, 255)
+KNIFE_HANDLE = (110, 70, 40)
 
 
 def enemy_color(kind, angry=False):
-    """Color de un enemigo según su tipo ("tongue" rojo, "laser" azul) y si está enfadado."""
+    """Color de un enemigo según su tipo ("tongue" rojo, "laser" azul, "knife" naranja) y si
+    está enfadado."""
     if kind == "laser":
         return ENEMY_BLUE_ANGRY if angry else ENEMY_BLUE
+    if kind == "knife":
+        return ENEMY_ORANGE_ANGRY if angry else ENEMY_ORANGE
     return ENEMY_ANGRY if angry else ENEMY
 TONGUE = (255, 120, 170)
 LASER = (255, 40, 40)
@@ -198,4 +246,12 @@ MEDKIT_CROSS = (225, 35, 45)
 GOLD = (255, 200, 40)
 GOLD_DARK = (200, 140, 20)
 GOLD_SHINE = (255, 245, 180)
+BOMB_BLACK = (58, 60, 70)         # gris oscuro (antes casi negro: no se veía sobre el fondo)
+BOMB_SHADE = (100, 104, 118)      # volumen (zona iluminada arriba a la izquierda)
+BOMB_RIM = (150, 156, 176)        # contorno claro: la separa del fondo azul oscuro
+BOMB_CAP = (95, 98, 112)
+FUSE = (125, 92, 58)
+FUSE_BURNT = (70, 50, 35)
+FIRE_ORANGE = (255, 130, 30)
+FIRE_YELLOW = (255, 225, 90)
 DIFFICULTY_COLORS = {"easy": (110, 210, 130), "normal": (255, 215, 40), "hard": (240, 90, 90)}

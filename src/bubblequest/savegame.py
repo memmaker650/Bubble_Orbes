@@ -23,7 +23,7 @@ LEGACY_VERSIONS = {1}
 _BODY = ("fx", "fy", "vx", "vy", "on_ground", "coyote")
 _ENEMY = _BODY + ("direction", "state", "alive", "angry", "jump_cd",
                   "attack", "attack_t", "cooldown", "sight_t", "tired",
-                  "super_attack")
+                  "super_attack", "crouch_t", "crouch_cd")
 _BUBBLE = ("fx", "fy", "vx", "state", "timer", "life", "age")
 
 
@@ -93,6 +93,7 @@ def snapshot(w: World) -> dict | None:
         "bubbles": bubbles,
         "medkits": [list(m.cell) for m in w.medkits],    # los que quedan sin coger
         "coins": [list(c.cell) for c in w.coins],
+        "bombs": [[*m.cell, m.lit, m.timer] for m in w.bombs],   # las que no han explotado
     }
 
 
@@ -146,6 +147,11 @@ def restore(data: dict) -> World:
         if "medkits" in data:                          # los ya cogidos no vuelven
             left = {tuple(c) for c in data["medkits"]}
             w.medkits = [m for m in w.medkits if m.cell in left]
+        if "bombs" in data:                            # las que explotaron no vuelven
+            state = {(x, y): (lit, timer) for x, y, lit, timer in data["bombs"]}
+            w.bombs = [m for m in w.bombs if m.cell in state]
+            for m in w.bombs:
+                m.lit, m.timer = bool(state[m.cell][0]), float(state[m.cell][1])
         if "coins" in data:                            # las ya cogidas no vuelven
             left = {tuple(c) for c in data["coins"]}
             w.coins = [c for c in w.coins if c.cell in left]

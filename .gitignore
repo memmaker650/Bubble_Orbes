@@ -13,3 +13,19 @@ iOS/
 
 .DS_Store
 *.db
+
+.briefcase/bubblequest/venv-macOS-arm64/bin/activate
+
+.briefcase/bubblequest/venv-macOS-arm64/bin/activate.csh
+
+.briefcase/bubblequest/venv-macOS-arm64/bin/activate.fish
+
+.briefcase/bubblequest/venv-macOS-arm64/bin/Activate.ps1
+
+.briefcase/bubblequest/venv-macOS-arm64/bin/python
+
+.briefcase/bubblequest/venv-macOS-arm64/bin/python3
+
+.briefcase/bubblequest/venv-macOS-arm64/bin/python3.11
+
+.briefcase/bubblequest/venv-macOS-arm64/pyvenv.cfg

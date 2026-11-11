@@ -18,8 +18,8 @@ def step(world, n, actions=()):
 
 
 def _counts(rows):
-    enemies = sum(r.count("E") + r.count("B") for r in rows)
-    return len(rows), enemies, sum(r.count("B") for r in rows), sum(r.count("L") for r in rows)
+    enemies = sum(r.count("E") + r.count("A") for r in rows)
+    return len(rows), enemies, sum(r.count("A") for r in rows), sum(r.count("L") for r in rows)
 
 
 def test_generator_is_deterministic():
@@ -188,7 +188,7 @@ def test_start_and_star_follow_the_layout_rules(number):
         assert s_row == (0 if layout == "middle_up" else n - 1)
     # Nadie le ataca nada más empezar
     for r, row in enumerate(rows):
-        if "E" in row or "B" in row:
+        if any(ch in row for ch in "EAN"):
             assert abs(r - p_row) > SAFE_ROWS, (number, r)
 
 
@@ -205,4 +205,4 @@ def test_set_layout_rejects_unknown_and_keeps_rest():
     for ra, rb in zip(rows, down):
         for a, b in zip(ra, rb):
             if a != b:
-                assert {a, b} <= set(" PSEB")
+                assert {a, b} <= set(" PSEA")

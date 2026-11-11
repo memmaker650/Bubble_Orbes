@@ -21,6 +21,12 @@ from .world import World
 IS_IOS = sys.platform == "ios"
 _BTN_X = (S.LOGICAL_W - 260) // 2      # botones de menú centrados
 _SCORES_X = (S.LOGICAL_W - 300) // 2
+_TOWER_BASE = S.LOGICAL_H // 2 + 200  # y de la base de la torre (sobre la cima de la colina)
+_TOWER_FLAG_H = 46                    # alto del banderín sobre las almenas
+_TOWER_TOP = _TOWER_FLAG_H + 8        # y de las almenas: deja sitio arriba para el banderín
+_HILL_FLAT_W = 100                    # cima plana de la colina (bajo la torre)
+_HILL_FOOT_X = 300                    # donde la ladera llega al borde inferior
+_MENU_PLAYER_SCALE = 1.5              # personaje del menú: 50 % más grande que en el juego
 log = logging.getLogger(__name__)
 
 
@@ -49,6 +55,9 @@ class MenuScene(Scene):
         self.font = pygame.font.Font(None, 38)
         self.small = pygame.font.Font(None, 22)
         self.t = 0.0
+        # Torre de fondo: base en la colina (_TOWER_BASE) y almenas en _TOWER_TOP, 74 px de ancho
+        self.tower = castle_tower(height=_TOWER_BASE - _TOWER_TOP, width=74)
+        self.hill = menu_hill()
         self._build_buttons()
 
     def _build_buttons(self):
@@ -121,19 +130,144 @@ class MenuScene(Scene):
 
     def draw(self, surf):
         surf.fill(S.BG)
+        surf.blit(self.hill, (0, 0))
+        surf.blit(self.tower, self.tower.get_rect(bottomleft=(S.BORDER, _TOWER_BASE)))
         for i in range(6):  # orbes decorativos flotando
             x = (S.LOGICAL_W - 280) // 2 + i * 56
             y = 240 - ((self.t * 30 + i * 70) % 260) + 120
             r = 12 + (i % 3) * 5
             pygame.draw.circle(surf, S.BUBBLE, (x + math.sin(self.t + i) * 12, y), r, 2)
-        title = "BUBBLEQUEST"
-        draw_text(surf, fit_font(self.title_font, title, S.LOGICAL_W - 2 * S.BORDER - 16), title,
-                  S.BUBBLE, center=(S.LOGICAL_W // 2, 200))
-        draw_text(surf, self.small, t("menu.subtitle"), S.WHITE,
-                  center=(S.LOGICAL_W // 2, 270))
+
+        # Personaje (50 % más grande que en el juego), flotando un poco sobre el título
+        w, h = round(28 * _MENU_PLAYER_SCALE), round(32 * _MENU_PLAYER_SCALE)
+        bob = round(math.sin(self.t * 2.5) * 4)
+        player = pygame.Rect(0, 0, w, h)
+        player.midbottom = (S.LOGICAL_W // 2, 128 + bob)
+        draw_player_sprite(surf, player, 1)
+
+        # Título en dos líneas: "BUBBLE" y, debajo y desplazado a la derecha, "QUEST"
+        max_w = S.LOGICAL_W - 2 * S.BORDER - 16
+        font = fit_font(self.title_font, "BUBBLE", max_w)
+        # Con sombra oscura para que se lean bien delante de la torre
+        cx = S.LOGICAL_W // 2
+        for text, fnt, color, (x, y), d in (("BUBBLE", font, S.BUBBLE, (cx - 20, 172), 3),
+                                            ("QUEST", font, S.BUBBLE, (cx + 50, 238), 3),
+                                            (t("menu.subtitle"), self.small, S.WHITE,
+                                             (cx, 296), 1)):
+            draw_text(surf, fnt, text, S.BG, center=(x + d, y + d))
+            draw_text(surf, fnt, text, color, center=(x, y))
         for _, button in self.buttons:
             button.draw(surf, self.font)
         self.lang_button.draw(surf)
+
+
+def draw_player_sprite(surf, rect, facing):
+    """Cuerpo del personaje mirando a ``facing`` (1 derecha, -1 izquierda). Las medidas se
+    escalan con el tamaño del rectángulo (28x32 en el juego)."""
+    k = rect.width / 28
+    pygame.draw.rect(surf, S.PLAYER, rect, border_radius=round(10 * k))
+    ex = rect.centerx + facing * 5 * k
+    ey = rect.y + 12 * k
+    pygame.draw.circle(surf, S.WHITE, (ex, ey), 5 * k)
+    pygame.draw.circle(surf, S.BLACK, (ex + facing * 2 * k, ey), 2 * k)
+
+
+def castle_tower(height=256, width=74):
+    """Torre de castillo de piedra: almenas arriba, sillares, saeteras, una ventana con
+    arco, la puerta abajo y un banderín en lo alto. Devuelve una superficie transparente."""
+    flag_h = _TOWER_FLAG_H
+    merlon = 12                                       # alto de las almenas
+    img = pygame.Surface((width + 26, height + flag_h), pygame.SRCALPHA)
+    img.fill((0, 0, 0, 0))
+    top = flag_h + merlon                             # arriba del muro (bajo las almenas)
+    wall = pygame.Rect(0, top, width, height - merlon)
+    pygame.draw.rect(img, S.STONE, wall)
+
+    # Sillares: hileras de bloques alternos
+    row_h, block_w = 16, 20
+    for i, y in enumerate(range(wall.y, wall.bottom, row_h)):
+        pygame.draw.line(img, S.STONE_DARK, (0, y), (width - 1, y), 1)
+        offset = 0 if i % 2 else block_w // 2
+        for x in range(offset, width, block_w):
+            pygame.draw.line(img, S.STONE_DARK, (x, y), (x, min(y + row_h, wall.bottom)), 1)
+
+    # Almenas (merlones con huecos)
+    gap = width // 5
+    for i in range(0, 5, 2):
+        pygame.draw.rect(img, S.STONE, (i * gap, flag_h, gap, merlon + 1))
+        pygame.draw.rect(img, S.STONE_DARK, (i * gap, flag_h, gap, merlon + 1), 1)
+    # Cornisa bajo las almenas
+    pygame.draw.rect(img, S.STONE_DARK, (0, top, width, 4))
+
+    # Banderín
+    pole_x = width // 2
+    pygame.draw.line(img, S.STONE_DARK, (pole_x, 2), (pole_x, flag_h + merlon), 3)
+    pygame.draw.polygon(img, S.ENEMY, [(pole_x + 1, 4), (pole_x + 24, 13), (pole_x + 1, 22)])
+
+    # Ventana con arco (iluminada) y saeteras
+    win = pygame.Rect(0, 0, 16, 26)
+    win.midtop = (width // 2, top + 28)
+    pygame.draw.rect(img, S.GOLD_DARK, win, border_top_left_radius=9, border_top_right_radius=9)
+    pygame.draw.rect(img, S.STONE_DARK, win, 2, border_top_left_radius=9,
+                     border_top_right_radius=9)
+    pygame.draw.line(img, S.STONE_DARK, (win.centerx, win.y + 4), (win.centerx, win.bottom), 2)
+    for y in range(top + 110, wall.bottom - 90, 95):
+        pygame.draw.rect(img, S.BG, (width // 2 - 3, y, 6, 22), border_radius=2)
+
+    # Puerta de madera con arco
+    door = pygame.Rect(0, 0, 26, 42)
+    door.midbottom = (width // 2, wall.bottom)
+    pygame.draw.rect(img, S.KNIFE_HANDLE, door, border_top_left_radius=15,
+                     border_top_right_radius=15)
+    pygame.draw.rect(img, S.STONE_DARK, door, 3, border_top_left_radius=15,
+                     border_top_right_radius=15)
+    pygame.draw.line(img, S.DIRT_DARK, (door.centerx, door.y + 4), (door.centerx, door.bottom), 2)
+
+    # Sombra en el lado derecho para dar volumen
+    pygame.draw.rect(img, S.STONE_DARK, (width - 6, top, 6, wall.height))
+    return img
+
+
+def hill_y(x):
+    """Altura del perfil de la colina del menú en ``x``: cima plana bajo la torre y ladera
+    suave (smoothstep) hasta el borde inferior de la pantalla."""
+    if x <= _HILL_FLAT_W:
+        return _TOWER_BASE
+    k = min(1.0, (x - _HILL_FLAT_W) / (_HILL_FOOT_X - _HILL_FLAT_W))
+    return _TOWER_BASE + (S.LOGICAL_H - _TOWER_BASE) * k * k * (3 - 2 * k)
+
+
+# Rocas de la colina: (x, y, radio, semilla de la forma)
+_HILL_ROCKS = ((34, 668, 15, 0), (96, 650, 9, 1), (128, 712, 13, 2), (58, 752, 19, 3),
+               (186, 778, 11, 4), (150, 668, 7, 5), (20, 792, 10, 6))
+
+
+def _rock_points(x, y, r, seed):
+    """Contorno irregular de una roca: algo más ancha que alta y con la base más plana."""
+    pts = []
+    n = 9
+    for i in range(n):
+        a = 2 * math.pi * (i + 0.3 * math.sin(seed + i)) / n
+        rr = r * (0.8 + 0.2 * math.sin(seed * 2.3 + i * 1.7))
+        dy = math.sin(a) * rr * 0.85
+        pts.append((x + math.cos(a) * rr * 1.1, y + (min(dy, r * 0.45) if dy > 0 else dy)))
+    return pts
+
+
+def menu_hill():
+    """Colina bajo la torre del menú y unas rocas, solo con contorno (sin relleno).
+    Devuelve una capa transparente del tamaño de la pantalla."""
+    layer = transparent_layer((S.LOGICAL_W, S.LOGICAL_H))
+    profile = [(x, hill_y(x)) for x in range(0, _HILL_FOOT_X + 1, 4)]
+    pygame.draw.lines(layer, S.STONE, False, profile, 2)
+    for x, y, r, seed in _HILL_ROCKS:
+        pts = _rock_points(x, y, r, seed)
+        pygame.draw.polygon(layer, S.STONE, pts, 2)
+        if r >= 12:                                          # grieta en las rocas grandes
+            pygame.draw.lines(layer, S.STONE, False,
+                              [(x - r * 0.3, y - r * 0.5), (x, y - r * 0.1),
+                               (x - r * 0.15, y + r * 0.25)], 1)
+    return layer
 
 
 def get_difficulty(db) -> str:
@@ -286,6 +420,7 @@ class GameScene(Scene):
         self.world = world
         self._world_surf = None      # superficie con el nivel entero (alto variable)
         self._brick_tile = None
+        self._bomb_images = {}        # {encendida: imagen} (ver _bomb_image)
         self.controls = Controls()
         self.hud = pygame.font.Font(None, 26)
         self.big = pygame.font.Font(None, 54)
@@ -383,11 +518,18 @@ class GameScene(Scene):
             self._draw_medkit(field, m)
         for c in w.coins:
             self._draw_coin(field, c)
+        for m in w.bombs:
+            self._draw_bomb(field, m)
         for e in w.enemies:
             if e.alive:
                 self._draw_enemy(field, e)
         for b in w.bubbles:
             self._draw_bubble(field, b)
+        for x, y, age in w.explosions:
+            self._draw_smoke(field, x, y, age)          # el humo, detrás del fuego
+        for x, y, age in w.explosions:
+            if age < S.EXPLOSION_TIME:
+                self._draw_explosion(field, x, y, age)
         if w.celebrating:
             self._draw_player_celebrating(field, w.player, w.celebrate_t)
         elif w.player.dead:
@@ -424,9 +566,7 @@ class GameScene(Scene):
         if w.tutorial_step is not None:
             self._draw_tutorial_hint(surf, w.tutorial_step)
         if w.message_timer > 0 and w.state == "playing":
-            draw_message_box(surf, [(self.font, t(w.message), S.WHITE)],
-                             center=(S.LOGICAL_W // 2, S.HUD_H + S.FIELD_H // 2),
-                             accent=S.STAR_YELLOW)
+            self._draw_message(surf, w)
         if self._overlay_visible():
             self._draw_overlay(surf)
 
@@ -461,13 +601,34 @@ class GameScene(Scene):
             y = S.HUD_H + S.FIELD_H - 10
             pygame.draw.polygon(surf, S.WHITE, [(cx - 6, y - 5), (cx, y + 3), (cx + 6, y - 5)])
 
+    def _draw_top_hint(self, surf, text, bottom=False):
+        """Aviso informativo en una franja fina arriba (sobre la fila 0 del nivel), para no
+        tapar la zona de juego: la guía del tutorial y los avisos de los niveles normales.
+        Con ``bottom`` la franja va abajo del todo de la zona de juego."""
+        y = (S.HUD_H + S.FIELD_H - S.BORDER - S.TILE // 2) if bottom else \
+            (S.HUD_H + S.BORDER + S.TILE // 2)
+        return draw_message_box(surf, [(self.small, text, S.STAR_YELLOW)],
+                                center=(S.LOGICAL_W // 2, y),
+                                width=S.FIELD_W - 2 * S.BORDER, padding=6, gap=4,
+                                accent=S.STAR_YELLOW)
+
     def _draw_tutorial_hint(self, surf, step):
         keys = "" if IS_IOS else " (Z)"
-        # En la fila 0, que está libre en el tutorial
-        draw_message_box(surf, [(self.small, t(f"tutorial.{step}", keys=keys), S.STAR_YELLOW)],
-                         center=(S.LOGICAL_W // 2, S.HUD_H + S.BORDER + S.TILE // 2),
-                         width=S.FIELD_W - 2 * S.BORDER, padding=6, gap=4,
-                         accent=S.STAR_YELLOW)
+        return self._draw_top_hint(surf, t(f"tutorial.{step}", keys=keys))
+
+    def _draw_message(self, surf, w):
+        """Aviso temporal (p. ej. "Mata a todos los enemigos..." al tocar la estrella antes de
+        tiempo). En los niveles normales, arriba como la ayuda del tutorial para no tapar la
+        zona de juego; en el tutorial, centrado, porque arriba ya está la guía de pasos."""
+        if w.tutorial:
+            return draw_message_box(surf, [(self.font, t(w.message), S.WHITE)],
+                                    center=(S.LOGICAL_W // 2, S.HUD_H + S.FIELD_H // 2),
+                                    accent=S.STAR_YELLOW)
+        # Arriba, salvo que el jugador esté en esa parte de la pantalla (p. ej. tocando una
+        # estrella en lo alto del nivel): entonces abajo, para no taparle a él ni a la estrella
+        player_y = S.HUD_H + w.player.rect.top - round(w.camera_y)
+        return self._draw_top_hint(surf, t(w.message),
+                                   bottom=player_y < S.HUD_H + 3 * S.TILE)
 
     def _draw_popup(self, surf, x, y, text, color, alpha):
         """Texto de puntos flotante, con un contorno oscuro para que se lea sobre el fondo."""
@@ -479,6 +640,136 @@ class GameScene(Scene):
         layer.blit(img, (1, 1))
         fade(layer, round(255 * alpha))
         surf.blit(layer, layer.get_rect(midbottom=(x, y)))
+
+    # --- bombas ---
+    # Imagen de la bomba (40 x 48): bola negra abajo, saliente rectangular encima y la mecha
+    # saliendo del saliente. La mecha encendida se dibuja aparte (se va consumiendo).
+    BOMB_IMG = (40, 48)
+    BOMB_BALL = ((20, 34), 13)              # centro y radio de la bola
+    BOMB_FUSE_PTS = ((20, 17), (21, 11), (26, 7), (31, 4))   # mecha, del saliente a la punta
+
+    def _bomb_image(self, lit):
+        """Imagen de la bomba apagada (mecha entera) o encendida (saliente al rojo y sin la
+        mecha, que se dibuja consumiéndose). Se prepara una vez."""
+        img = self._bomb_images.get(lit)
+        if img is not None:
+            return img
+        img = transparent_layer(self.BOMB_IMG)
+        (cx, cy), r = self.BOMB_BALL
+        pygame.draw.circle(img, S.BOMB_RIM, (cx, cy), r + 1)                 # contorno claro
+        pygame.draw.circle(img, S.BOMB_BLACK, (cx, cy), r)
+        pygame.draw.circle(img, S.BOMB_SHADE, (cx - 4, cy - 4), r - 5)       # volumen
+        pygame.draw.circle(img, S.BOMB_BLACK, (cx - 1, cy - 1), r - 4)
+        pygame.draw.ellipse(img, (210, 214, 230), (cx - 9, cy - 9, 7, 5))    # brillo
+        cap = pygame.Rect(cx - 6, cy - r - 5, 12, 7)                         # saliente
+        pygame.draw.rect(img, S.BOMB_RIM, cap.inflate(2, 2), border_radius=2)
+        pygame.draw.rect(img, S.BOMB_CAP, cap, border_radius=2)
+        pygame.draw.line(img, (150, 154, 170), cap.topleft, (cap.right - 1, cap.top))
+        if lit:                                       # boca del saliente al rojo
+            pygame.draw.rect(img, S.FIRE_ORANGE, (cap.x + 3, cap.y, 6, 2))
+        else:                                         # mecha entera, apagada
+            pygame.draw.lines(img, S.FUSE, False, self.BOMB_FUSE_PTS, 3)
+        self._bomb_images[lit] = img
+        return img
+
+    def _draw_bomb(self, surf, m):
+        img = self._bomb_image(m.lit)
+        box = img.get_rect(midbottom=m.rect.midbottom)
+        if m.lit and m.timer < 1.0 and int(self.t * 12) % 2 == 0:
+            flash = transparent_layer(img.get_size())          # último segundo: parpadea
+            (cx, cy), r = self.BOMB_BALL
+            pygame.draw.circle(flash, (255, 60, 40, 150), (cx, cy), r)
+            surf.blit(img, box)
+            surf.blit(flash, box)
+        else:
+            surf.blit(img, box)
+        if not m.lit:
+            return
+        # Mecha que se consume desde la punta hacia el saliente, con la chispa en el extremo
+        pts = [(box.x + x, box.y + y) for x, y in self.BOMB_FUSE_PTS]
+        k = m.fuse_left
+        seg = (len(pts) - 1) * k
+        i = min(int(seg), len(pts) - 2)
+        f = seg - i
+        tip = (pts[i][0] + (pts[i + 1][0] - pts[i][0]) * f,
+               pts[i][1] + (pts[i + 1][1] - pts[i][1]) * f)
+        burning = pts[:i + 1] + [tip]
+        if len(burning) >= 2:
+            pygame.draw.lines(surf, S.FUSE_BURNT, False, burning, 3)
+        flick = abs(math.sin(self.t * 25))
+        for rad, color in ((6 + 2 * flick, S.FIRE_ORANGE), (3 + flick, S.FIRE_YELLOW),
+                           (1.5, S.WHITE)):
+            pygame.draw.circle(surf, color, tip, rad)
+        for a in range(4):                              # rayitos de la chispa
+            ang = self.t * 9 + a * math.pi / 2
+            end = (tip[0] + math.cos(ang) * (8 + 3 * flick), tip[1] + math.sin(ang) * (8 + 3 * flick))
+            pygame.draw.line(surf, S.FIRE_YELLOW, tip, end, 1)
+        # Cuenta atrás encima
+        secs = max(1, math.ceil(m.timer))
+        self._draw_popup(surf, box.centerx, box.top - 2, str(secs), S.FIRE_YELLOW, 1.0)
+
+    def _draw_smoke(self, surf, x, y, age):
+        """Bocanadas de humo gris: aparecen al pasar el fogonazo, se hinchan, suben despacio
+        y se van difuminando hasta desaparecer. Cada una en su capa para que se mezclen."""
+        start = S.EXPLOSION_TIME * 0.5                 # sale cuando el fuego se apaga
+        if age < start:
+            return
+        k = (age - start) / (S.SMOKE_TIME - start)     # 0 -> 1 durante la vida del humo
+        if k >= 1:
+            return
+        for i in range(S.SMOKE_PUFFS):
+            ang = i * 2.39996                          # ángulo áureo: reparto uniforme
+            spread = S.BOMB_RADIUS * (0.25 + 0.45 * ((i * 37) % 10) / 10)
+            ease = 1 - (1 - k) ** 2                    # sale rápido y frena
+            px = x + math.cos(ang) * spread * (0.4 + 0.6 * ease)
+            py = y + math.sin(ang) * spread * 0.6 * (0.4 + 0.6 * ease) - 55 * k   # sube
+            radius = 14 + 26 * ease + (i % 3) * 4
+            # Aparece rápido y se difumina despacio
+            alpha = 165 * min(1.0, k / 0.12) * (1 - k) ** 1.4
+            if alpha < 3:
+                continue
+            gray = 85 + (i * 23) % 55                  # tonos de gris variados
+            puff = transparent_layer((round(radius * 2) + 2, round(radius * 2) + 2))
+            c = puff.get_width() // 2
+            pygame.draw.circle(puff, (gray, gray, gray + 6, round(alpha)), (c, c), round(radius))
+            pygame.draw.circle(puff, (gray + 30, gray + 30, gray + 36, round(alpha * 0.8)),
+                               (c - radius * 0.3, c - radius * 0.3), round(radius * 0.55))
+            surf.blit(puff, (px - c, py - c))
+
+    def _draw_explosion(self, surf, x, y, age):
+        """Bola de fuego que crece hasta el radio de alcance y se desvanece: llamas con borde
+        irregular, núcleo amarillo y blanco, onda expansiva y cascotes."""
+        k = age / S.EXPLOSION_TIME
+        grow = 1 - (1 - min(1.0, k / 0.35)) ** 2               # crece rápido y frena
+        r = max(4, S.BOMB_RADIUS * grow)
+        fade_k = (1 - k) ** 0.7
+        size = 2 * S.BOMB_RADIUS + 40
+        layer = transparent_layer((size, size))
+        c = size // 2
+
+        def flames(radius, spikes, jag, color, alpha):
+            pts = []
+            for i in range(spikes * 2):
+                ang = i * math.pi / spikes + age * 3
+                rr = radius * (1 + (jag if i % 2 == 0 else -jag * 0.5))
+                pts.append((c + math.cos(ang) * rr, c + math.sin(ang) * rr))
+            pygame.draw.polygon(layer, (*color, round(alpha * fade_k)), pts)
+
+        flames(r, 14, 0.12, (230, 70, 20), 225)                 # llamas rojas exteriores
+        flames(r * 0.78, 12, 0.10, S.FIRE_ORANGE, 240)          # naranja
+        pygame.draw.circle(layer, (*S.FIRE_YELLOW, round(245 * fade_k)), (c, c), round(r * 0.5))
+        if k < 0.5:   # destello blanco al principio: se mezcla el color (no la transparencia,
+            w = 1 - k / 0.5                  # que en una capa sustituye a lo de debajo)
+            core = tuple(round(y + (255 - y) * w) for y in S.FIRE_YELLOW)
+            pygame.draw.circle(layer, (*core, round(245 * fade_k)), (c, c), round(r * 0.3))
+        pygame.draw.circle(layer, (255, 240, 200, round(160 * fade_k)), (c, c),
+                           round(r * 1.08), 3)                  # onda expansiva
+        surf.blit(layer, (x - c, y - c))
+        for i in range(10):                                     # cascotes
+            ang = i * 2 * math.pi / 10 + 0.3
+            d = S.BOMB_RADIUS * 0.95 * grow
+            px, py = x + math.cos(ang) * d, y + math.sin(ang) * d + 40 * k * k
+            pygame.draw.circle(surf, (35, 30, 28), (px, py), 3)
 
     def _draw_coin(self, surf, c):
         """Moneda de oro girando (se estrecha y ensancha) con un brillo."""
@@ -664,10 +955,7 @@ class GameScene(Scene):
     def _draw_player(self, surf, p):
         if p.invuln > 0 and int(self.t * 10) % 2 == 0:
             return  # parpadeo
-        pygame.draw.rect(surf, S.PLAYER, p.rect, border_radius=10)
-        ex = p.rect.centerx + p.facing * 5
-        pygame.draw.circle(surf, S.WHITE, (ex, p.rect.y + 12), 5)
-        pygame.draw.circle(surf, S.BLACK, (ex + p.facing * 2, p.rect.y + 12), 2)
+        draw_player_sprite(surf, p.rect, p.facing)
 
     def _draw_enemy(self, surf, e):
         if e.kind == "tongue" and e.tired and not e.attacking:
@@ -696,6 +984,9 @@ class GameScene(Scene):
         surf.blit(leaned, leaned.get_rect(midbottom=(x, y + below)))
 
     def _draw_enemy_body(self, surf, e):
+        if e.kind == "knife":
+            self._draw_knife_enemy(surf, e)
+            return
         color = S.enemy_color(e.kind, e.angry)
         pygame.draw.rect(surf, color, e.rect, border_radius=8)
         if e.kind == "tongue":
@@ -711,6 +1002,55 @@ class GameScene(Scene):
                 pygame.draw.circle(surf, S.BLACK, pupil, 2)
         if e.kind == "laser" and e.attack == "fire":
             self._draw_laser(surf, e)
+
+    # --- enemigo naranja (cuchillo) ---
+    def _draw_knife_enemy(self, surf, e):
+        """Naranja con cejas de enfadado y un cuchillo. Agachado: se aplasta (bajar y subir
+        rápido). Cuchillada: el brazo sale con el cuchillo, se mantiene y se retrae."""
+        d = e.direction
+        k = 0.0
+        if e.crouching:                                 # 0 de pie .. 1 agachado del todo
+            down = S.CROUCH_TIME - e.crouch_t
+            k = min(1.0, down / 0.08, e.crouch_t / 0.08)
+        h = round(32 - 14 * k)
+        body = pygame.Rect(0, 0, round(28 + 6 * k), h)
+        body.midbottom = e.rect.midbottom
+        color = S.enemy_color(e.kind, e.angry)
+        dark = tuple(round(c * 0.7) for c in color)
+        pygame.draw.rect(surf, color, body, border_radius=8)
+        pygame.draw.rect(surf, dark, body, 1, border_radius=8)
+        # Ojos y cejas (más juntos y bajos al agacharse)
+        ey = body.y + round(10 * h / 32) + 1
+        for dx in (-6, 6):
+            eye = (body.centerx + dx, ey)
+            pygame.draw.circle(surf, S.WHITE, eye, 4)
+            pygame.draw.circle(surf, S.BLACK, (eye[0] + d * 2, eye[1]), 2)
+            inner = eye[0] - (1 if dx > 0 else -1) * 1          # cejas en V: enfadado
+            outer = eye[0] + (1 if dx > 0 else -1) * 5
+            pygame.draw.line(surf, dark, (outer, ey - 7), (inner, ey - 4), 2)
+        # Cuchillo
+        front = body.right if d > 0 else body.left
+        hy = body.y + round(19 * h / 32)
+        ext = e.stab_extension if e.kind == "knife" else 0.0
+        if e.crouching:                                 # agachado: cuchillo pegado al cuerpo
+            tip = (front + d * 14, hy + 3)
+        else:                                           # misma punta que la zona de daño
+            tip = (front + d * (S.KNIFE_REST + S.KNIFE_REACH * ext), hy)
+        base = (tip[0] - d * 14, tip[1])                # inicio de la hoja (fin del mango)
+        grip = (base[0] - d * 6, base[1])               # mano
+        if ext > 0:                                     # brazo estirado hasta la mano
+            pygame.draw.line(surf, dark, (front - d * 3, hy), grip, 5)
+        pygame.draw.circle(surf, color, grip, 4)
+        pygame.draw.circle(surf, dark, grip, 4, 1)
+        pygame.draw.line(surf, S.KNIFE_HANDLE, grip, base, 4)              # mango
+        blade = [(base[0], base[1] - 3), tip, (base[0], base[1] + 2)]
+        pygame.draw.polygon(surf, S.KNIFE_BLADE, blade)                   # hoja
+        pygame.draw.line(surf, S.KNIFE_EDGE, (base[0], base[1] - 2), tip, 1)
+        if e.stab_phase == "out":                       # estela al lanzar la cuchillada
+            for i, off in enumerate((-5, 0, 5)):
+                x0 = tip[0] - d * (10 + 6 * i)
+                pygame.draw.line(surf, (255, 240, 200), (x0, tip[1] + off),
+                                 (x0 - d * 8, tip[1] + off), 1)
 
     def _draw_tongue(self, surf, e):
         rect = e.attack_rect()

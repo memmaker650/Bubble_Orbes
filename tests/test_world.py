@@ -3,6 +3,7 @@ import pytest
 from bubblequest import settings as S
 from bubblequest.levels import LEVELS, parse_level
 from bubblequest.world import World
+from enemy_helpers import enemy_of  # noqa: E402
 
 DT = 1 / 60
 
@@ -68,7 +69,7 @@ def test_bubble_traps_then_pop_scores():
     p.place(*bubble.rect.topleft)
     step(w, 1)
     assert not e.alive
-    assert w.score >= S.POINTS_ENEMY
+    assert w.score >= S.enemy_points(e.kind)
 
 
 def test_trapped_enemy_escapes_angry():
@@ -149,8 +150,8 @@ def test_star_after_enemies_dead_wins_level():
     step(w, 1)
     assert w.state == "won"
     assert w.star.lit
-    assert w.score == S.POINTS_LEVEL
-    assert w.level_points == S.POINTS_LEVEL
+    assert w.score == S.level_bonus(1) == 200
+    assert w.level_points == S.level_bonus(1)
     assert w.elapsed > 0.4
 
 
@@ -176,7 +177,7 @@ FLOOR_Y = S.FLOOR_Y - 32
 def _duel(cls, gap):
     """Mundo con un único enemigo en el suelo, a `gap` píxeles del jugador y mirándolo."""
     w = World(1, seed=1)
-    w.enemies = [e for e in w.enemies if isinstance(e, cls)][:1]
+    w.enemies = [enemy_of(w, cls)]
     e, p = w.enemies[0], w.player
     p.place(60, FLOOR_Y)
     e.place(60 + 28 + gap, FLOOR_Y)
@@ -188,10 +189,16 @@ def _duel(cls, gap):
     return w, e, p
 
 
-def test_every_level_mixes_both_enemy_types():
+def test_enemy_types_by_level():
     for i in range(len(LEVELS)):
         kinds = {e.kind for e in World(i, seed=1).enemies}
-        assert kinds == {"tongue", "laser"}
+        number = LEVELS[i].number
+        if number == 0:                         # tutorial: los tres tipos (inofensivos)
+            assert kinds == {"tongue", "laser", "knife"}
+        elif number < 5:                        # sin azules antes del nivel 5
+            assert kinds == {"tongue", "knife"}, number
+        else:
+            assert "laser" in kinds and len(kinds) >= 2, number
 
 
 def test_tongue_hits_player_at_range_without_touching():
@@ -277,7 +284,7 @@ def test_normal_difficulty_keeps_laser_one_second_four_recharge():
 def test_hard_recharges_faster_easy_slower():
     for name, expected in (("hard", 3.0), ("easy", 5.0)):
         w = World(1, seed=1, difficulty=name)
-        e = next(e for e in w.enemies if isinstance(e, LaserEnemy))
+        e = enemy_of(w, LaserEnemy)
         e._end_attack(S.LASER_RECHARGE)
         assert e.cooldown == pytest.approx(expected)
 
@@ -311,7 +318,7 @@ def _release_at(w, e, x, y, direction):
 def test_enemy_released_at_ceiling_stays_in_field(direction):
     w = World(1, seed=1)
     w.player.invuln = 999
-    e = next(e for e in w.enemies if isinstance(e, LaserEnemy))
+    e = enemy_of(w, LaserEnemy)
     _release_at(w, e, 180, S.BORDER, direction)
     step(w, 1)
     assert INTERIOR.contains(e.rect), e.rect
@@ -362,7 +369,7 @@ def test_level_can_always_be_finished_after_escape():
     estrella termina el nivel."""
     w = World(1, seed=1)
     w.player.invuln = 999
-    e = next(e for e in w.enemies if isinstance(e, LaserEnemy))
+    e = enemy_of(w, LaserEnemy)
     _release_at(w, e, 180, S.BORDER, 1)
     step(w, 5)
     assert INTERIOR.contains(e.rect)
@@ -576,7 +583,7 @@ def test_non_final_death_has_no_grave():
 
 def _duel_d(cls, gap, difficulty):
     w = World(1, seed=1, difficulty=difficulty)
-    w.enemies = [e for e in w.enemies if isinstance(e, cls)][:1]
+    w.enemies = [enemy_of(w, cls)]
     e, p = w.enemies[0], w.player
     p.place(60, FLOOR_Y)
     e.place(60 + 28 + gap, FLOOR_Y)
@@ -692,7 +699,7 @@ def test_enemies_are_not_tired_at_level_start():
 def test_tired_state_survives_save():
     from bubblequest import savegame
     w = World(1, seed=1)
-    e = next(x for x in w.enemies if isinstance(x, TongueEnemy))
+    e = enemy_of(w, TongueEnemy)
     e.tired, e.cooldown = True, 1.0
     r = savegame.restore(savegame.snapshot(w))
     restored = r.enemies[w.enemies.index(e)]
@@ -917,8 +924,9 @@ def test_player_just_beyond_normal_reach_is_safe_from_normal_tongue():
 
 def test_super_attack_survives_save():
     from bubblequest import savegame
-    w = World(1, seed=1)
-    e = next(x for x in w.enemies if isinstance(x, LaserEnemy))
+    from bubblequest.levels import index_of
+    w = World(index_of(8), seed=1)            # nivel con enemigos azules propios
+    e = enemy_of(w, LaserEnemy)
     e.attack, e.super_attack = "fire", True
     r = savegame.restore(savegame.snapshot(w))
     assert r.enemies[w.enemies.index(e)].super_attack

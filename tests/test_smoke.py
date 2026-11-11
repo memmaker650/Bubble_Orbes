@@ -1,5 +1,6 @@
 from bubblequest.app import App
 from bubblequest.scenes import GameScene, ScoresScene
+from enemy_helpers import enemy_of  # noqa: E402
 
 
 def test_app_runs_menu_game_scores_headless(tmp_path):
@@ -333,7 +334,7 @@ def test_level_selector_wraps_and_resets(tmp_path):
     app = App(db_path=tmp_path / "t.db")
     play = PlayScene(app)
     play._activate("level_prev")                    # del 1 salta al último
-    assert play.selected == LEVELS[-1].number == 20
+    assert play.selected == LEVELS[-1].number == 30
     play._activate("level_next")
     assert play.selected == 1
     play._activate("level_next")
@@ -384,10 +385,10 @@ def test_no_black_boxes_background_surfaces_stay_opaque(tmp_path):
     w.popup(100, 300, 100, S.ENEMY_BLUE)
     w.popup(200, 300, 100, S.GOLD)
     w.bubbles = [Bubble(250, 450, 1)]
-    laser = next(e for e in w.enemies if isinstance(e, LaserEnemy))
+    laser = enemy_of(w, LaserEnemy)
     laser.attack, laser.super_attack = "fire", True
     laser._aim(w.solids)
-    tongue = next(e for e in w.enemies if isinstance(e, TongueEnemy))
+    tongue = enemy_of(w, TongueEnemy)
     tongue.tired = True                                # se dibuja inclinado en otra capa
     for _ in range(3):
         game.draw(app.display.surface)
@@ -431,3 +432,80 @@ def test_icons_exist_for_every_platform():
     assert (res / "icon.icns").read_bytes()[:4] == b"icns"               # macOS
     assert (res / "icon.ico").read_bytes()[:4] == b"\x00\x00\x01\x00"    # Windows
     assert (res / "icon.png").exists() and (res / "icon-macos.png").exists()
+
+
+def test_bombs_and_explosions_draw(tmp_path):
+    from bubblequest.levels import index_of
+    from bubblequest.scenes import GameScene
+    app = App(db_path=tmp_path / "t.db")
+    game = GameScene(app, level_index=index_of(13))
+    w = game.world
+    w.bombs[0].light()
+    for _ in range(int((3.0 + 0.7) * 60)):
+        w.player.invuln = 99
+        game.update(1 / 60)
+        game.draw(app.display.surface)
+    assert len(w.bombs) == 1
+    app.db.close()
+
+
+def test_knife_enemy_poses_draw(tmp_path):
+    from bubblequest import settings as S
+    from bubblequest.entities import KnifeEnemy
+    from bubblequest.scenes import GameScene
+    app = App(db_path=tmp_path / "t.db")
+    game = GameScene(app, level_index=1)
+    e = next(x for x in game.world.enemies if isinstance(x, KnifeEnemy))
+    for attack, t, crouch in ((None, 0, 0), ("stab", 0.05, 0), ("stab", 0.2, 0),
+                              ("stab", 0.4, 0), (None, 0, S.CROUCH_TIME / 2)):
+        e.attack, e.attack_t, e.crouch_t = attack, t, crouch
+        game.draw(app.display.surface)
+    app.db.close()
+
+
+def test_star_message_at_top_in_normal_levels_centered_in_tutorial(tmp_path):
+    """Al tocar la estrella sin haber eliminado a todos: en los niveles normales el aviso sale
+    arriba (como la ayuda del tutorial) para no tapar el juego; en el tutorial, centrado."""
+    from bubblequest import settings as S
+    from bubblequest.scenes import GameScene
+    app = App(db_path=tmp_path / "t.db")
+    for level, at_top in ((1, True), (0, False)):
+        game = GameScene(app, level_index=level)
+        w = game.world
+        w.player.place(*w.star.rect.topleft)
+        game.update(1 / 60)
+        assert w.message == "star.kill_all" and w.message_timer > 0
+        box = game._draw_message(app.display.surface, w)
+        if at_top:   # franja arriba o abajo (nunca centrado) y sin tapar al jugador
+            top_band = box.bottom < S.HUD_H + 2 * S.TILE + 20
+            bottom_band = box.top > S.HUD_H + S.FIELD_H - 2 * S.TILE - 20
+            assert top_band or bottom_band
+            assert not box.colliderect(w.player.rect.move(0, S.HUD_H - round(w.camera_y)))
+        else:
+            assert abs(box.centery - (S.HUD_H + S.FIELD_H // 2)) < 5
+    app.db.close()
+
+
+
+def test_star_message_moves_to_bottom_when_player_is_at_the_top(tmp_path):
+    """Si la estrella está arriba del todo (fila 0), el aviso no tapa al jugador: sale abajo."""
+    from bubblequest import settings as S
+    from bubblequest.levels import LEVELS, index_of
+    from bubblequest.scenes import GameScene
+    n = next(lv.number for lv in LEVELS if lv.number >= 5 and lv.rows[0].strip() == "S")
+    app = App(db_path=tmp_path / "t.db")
+    game = GameScene(app, level_index=index_of(n))
+    w = game.world
+    w.player.place(*w.star.rect.topleft)
+    for _ in range(90):                               # la cámara sube hasta el jugador
+        w.player.invuln = 99
+        game.update(1 / 60)
+        if w.message_timer == 0:
+            w.player.place(*w.star.rect.topleft)
+    w.player.place(*w.star.rect.topleft)
+    game.update(1 / 60)
+    box = game._draw_message(app.display.surface, w)
+    player_box = w.player.rect.move(0, S.HUD_H - round(w.camera_y))
+    assert not box.colliderect(player_box)
+    assert box.bottom > S.HUD_H + S.FIELD_H - 2 * S.TILE          # abajo
+    app.db.close()
