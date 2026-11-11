@@ -522,13 +522,13 @@ class GameScene(Scene):
             return img
         img = transparent_layer(self.BOMB_IMG)
         (cx, cy), r = self.BOMB_BALL
-        pygame.draw.circle(img, (8, 8, 12), (cx, cy), r + 1)                 # contorno
+        pygame.draw.circle(img, S.BOMB_RIM, (cx, cy), r + 1)                 # contorno claro
         pygame.draw.circle(img, S.BOMB_BLACK, (cx, cy), r)
-        pygame.draw.circle(img, (60, 62, 74), (cx - 4, cy - 4), r - 5)       # volumen
+        pygame.draw.circle(img, S.BOMB_SHADE, (cx - 4, cy - 4), r - 5)       # volumen
         pygame.draw.circle(img, S.BOMB_BLACK, (cx - 1, cy - 1), r - 4)
         pygame.draw.ellipse(img, (210, 214, 230), (cx - 9, cy - 9, 7, 5))    # brillo
         cap = pygame.Rect(cx - 6, cy - r - 5, 12, 7)                         # saliente
-        pygame.draw.rect(img, (8, 8, 12), cap.inflate(2, 2), border_radius=2)
+        pygame.draw.rect(img, S.BOMB_RIM, cap.inflate(2, 2), border_radius=2)
         pygame.draw.rect(img, S.BOMB_CAP, cap, border_radius=2)
         pygame.draw.line(img, (150, 154, 170), cap.topleft, (cap.right - 1, cap.top))
         if lit:                                       # boca del saliente al rojo
