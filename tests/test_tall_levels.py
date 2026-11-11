@@ -201,4 +201,4 @@ def test_player_bubble_is_stopped_by_brick():
 def test_tall_level_has_bricks_and_both_enemy_types():
     w = World(TALL, seed=1)
     assert len(w.bricks) >= 6
-    assert {e.kind for e in w.enemies} == {"tongue", "laser"}
+    assert {e.kind for e in w.enemies} == {"tongue", "knife"}   # sin azules antes del 5

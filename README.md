@@ -80,6 +80,7 @@ fichero. `python -m bubblequest.level_generator` crea los que falten **sin sobre
 | `S`      | Estrella de fin de nivel: con todos los enemigos eliminados, al tocarla se completa. |
 | `E`      | Enemigo rojo: ataca sacando la lengua.                                              |
 | `A`      | Enemigo azul: ataca con un láser por los ojos.                                      |
+| `N`      | Enemigo naranja: cuerpo a cuerpo con un cuchillo (cuchillada al tenerte pegado, ~46 px); se agacha para esquivar las burbujas que le vienen de frente (no siempre). |
 | `H`      | Botiquín: recupera un corazón (no se coge con la vida al completo).                 |
 | `C`      | Moneda de oro: +100 puntos.                                                         |
 | `B`      | Bomba: se enciende al golpearla con una burbuja o pulsando la acción encima; a los 3 s explota y elimina a los enemigos a menos de ~140 px (3,5 casillas). |
@@ -93,8 +94,36 @@ Reglas del mapa:
 - Un salto completo (doble pulsación) sube unas **3 filas**: las plataformas deben estar como mucho
   a 3 filas unas de otras para poder subir.
 - El jugador puede empezar **abajo** (la estrella arriba), **arriba del todo** (la estrella abajo
-  del todo) o **a mitad** del nivel (la estrella arriba o abajo). En los niveles 5 a 20 el
+  del todo) o **a mitad** del nivel (la estrella arriba o abajo). En los niveles 5 a 30 el
   generador rota esas cuatro disposiciones.
+
+### Niveles, tamaños y enemigos
+
+| Niveles | Alto | Enemigos |
+|---------|------|----------|
+| 0 (tutorial) | 16 filas | rojos y azules, inofensivos |
+| 1 – 3 | 16 filas (1 pantalla) | rojos y naranjas |
+| 4 ("La torre") | 32 filas | rojos y naranjas, ladrillos |
+| 5 – 25 | 22 → 82 filas (+3 por nivel) | rojos, azules y naranjas |
+| 26 – 30 | 88 → 112 filas (+6 por nivel) | rojos, azules y naranjas |
+
+- **Azules (ojos rojos, láser):** ninguno antes del nivel 5; desde ahí aparecen poco a poco,
+  **uno más por nivel** (1 en el 5, 2 en el 6...), como mucho la mitad de los enemigos del nivel,
+  repartidos por todo el nivel. El resto son rojos y algunos naranjas (~25 %).
+- En los niveles 21-30 hay tantos enemigos por fila como en el 20 (no más apiñados).
+- `assign_enemy_kinds` en `level_generator.py` decide el tipo de cada enemigo sin moverlo de su
+  casilla, así que sirve también para niveles retocados a mano.
+
+### Zonas de enemigos
+
+En los niveles más altos que la pantalla, el nivel se divide en **zonas invisibles**: franjas
+horizontales de unas 15 filas (`ZONE_ROWS` en `settings.py`; más zonas cuanto más alto el nivel,
+de 2 en "La torre" a 7 en el nivel 30). Cada enemigo pertenece a la zona de la plataforma donde
+empieza y **no sale de ella**: si caer por un borde lo llevaría a otra zona, se da la vuelta, y
+no salta hacia plataformas de una zona superior. Dentro de su zona se mueve como siempre. Así no
+se amontonan abajo con el tiempo (antes, en el nivel 14, llegaban a juntarse 18 en una pantalla).
+Los niveles de una pantalla (1-3) tienen una sola zona: los enemigos se mueven libremente. Las
+zonas no se marcan en el JSON: se calculan solas al cargar el nivel.
 
 ### Bombas (`B`)
 
@@ -122,7 +151,7 @@ JSON: al cargar el nivel, cada `B` se convierte en una bomba apagada en esa casi
 - Cada explosión queda registrada en el log (posición, enemigos eliminados y bombas encendidas
   en cadena).
 - El generador (`place_bombs` en `level_generator.py`) pone **1 bomba en los niveles 10 a 12**
-  (hasta 45 filas) y **2 en los niveles 13 a 20**, donde más enemigos quedan a su alcance, lejos
+  (hasta 45 filas) y **2 en los niveles 13 a 30**, donde más enemigos quedan a su alcance, lejos
   del inicio del jugador. En los niveles 1 a 9 no hay bombas, pero se pueden añadir a mano con `B`.
 - Ajustes en `settings.py`: `BOMB_FUSE`, `BOMB_RADIUS`, `EXPLOSION_TIME`, `SMOKE_TIME`.
 

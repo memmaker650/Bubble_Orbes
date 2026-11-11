@@ -83,6 +83,7 @@ class World:
         self.bricks = data.bricks
         self.oneway = data.oneway
         self.height = data.height                 # alto del mundo (px)
+        self.level_rows = data.rows
         self.floor_y = data.height - S.BORDER     # superficie del suelo
         self.interior = Rect(S.BORDER, S.BORDER, S.FIELD_W - 2 * S.BORDER,
                              data.height - 2 * S.BORDER)
@@ -93,6 +94,7 @@ class World:
         speed *= self.rules["enemy_speed"]
         self.enemies = [ENEMY_TYPES[kind](x, y, speed, self.rng)
                         for x, y, kind in data.enemy_spawns]
+        self._assign_zones()
         for e in self.enemies:
             e.cooldown_factor = self.rules["cooldown"]
             e.attack_delay = self.rules["attack_delay"]
@@ -105,6 +107,33 @@ class World:
         self.popups: list = []       # textos flotantes ("+100"): [x, y, tiempo, texto, color]
         self.camera_y = 0.0
         self.snap_camera()
+
+    # --- zonas de enemigos ---
+    @property
+    def zone_count(self) -> int:
+        """Número de zonas: 1 en niveles de una pantalla; en los altos, una cada ~ZONE_ROWS."""
+        rows = self.level_rows
+        return 1 if rows <= S.ROWS else max(1, rows // S.ZONE_ROWS)
+
+    def zone_bounds(self, index):
+        """(y de arriba, y de abajo) de la zona `index`; la última llega hasta el suelo."""
+        rows, n = self.level_rows, self.zone_count
+        top_row, bottom_row = index * rows // n, (index + 1) * rows // n
+        top = S.BORDER + top_row * S.TILE
+        bottom = self.floor_y if index == n - 1 else S.BORDER + bottom_row * S.TILE
+        return top, bottom
+
+    def zone_of_row(self, row) -> int:
+        return min(row * self.zone_count // self.level_rows, self.zone_count - 1)
+
+    def _assign_zones(self):
+        """Cada enemigo se queda en la zona de la plataforma donde empieza (solo en niveles
+        con varias zonas)."""
+        if self.zone_count == 1:
+            return
+        for e in self.enemies:
+            spawn_row = (e.spawn[1] - 8 - S.BORDER) // S.TILE
+            e.zone = self.zone_bounds(self.zone_of_row(spawn_row + 1))   # fila de su plataforma
 
     # --- cámara (scroll vertical) ---
     @property
@@ -176,6 +205,7 @@ class World:
         # Sin objetivo los enemigos nunca inician un ataque (tutorial)
         target = self.player.rect if self.level.enemies_attack else None
         predicted = self._predicted_player() if target and self.rules["preempt"] else None
+        self._dodge_bubbles()
         for e in self.enemies:
             if e.alive:
                 e.update(dt, self.solids, self.oneway, target, predicted)
@@ -289,7 +319,8 @@ class World:
                     self.bubbles.remove(b)
                     continue
                 for e in self.enemies:
-                    if e.alive and e.state == "walk" and b.rect.colliderect(e.rect):
+                    if (e.alive and e.state == "walk" and not e.crouching   # agachado: pasa
+                            and b.rect.colliderect(e.rect)):
                         e.trap()
                         self._tutorial_event("trap")
                         b.captured = e
@@ -370,6 +401,23 @@ class World:
     def popup(self, x, y, points, color):
         """Texto flotante con los puntos ganados (sube y se desvanece)."""
         self.popups.append([x, y, 0.0, f"+{points}", color])
+
+    # --- enemigo naranja: se agacha para esquivar burbujas ---
+    def _dodge_bubbles(self):
+        """Cada enemigo que sabe agacharse decide UNA vez por burbuja (no en cada fotograma)
+        si se agacha cuando la ve venir hacia él, a su altura y cerca."""
+        for b in self.bubbles:
+            if b.state != "shot" or b.captured is not None:
+                continue
+            for e in self.enemies:
+                if not hasattr(e, "try_dodge") or not e.alive or id(e) in b.dodge_seen:
+                    continue
+                dx = e.rect.centerx - b.rect.centerx
+                coming = dx * b.vx > 0                          # viene hacia él
+                level = b.rect.top < e.rect.bottom and b.rect.bottom > e.rect.top
+                if coming and level and abs(dx) <= S.DODGE_RANGE:
+                    if e.try_dodge(self.rng) is not None:   # ya ha decidido con esta burbuja
+                        b.dodge_seen.add(id(e))
 
     # --- bombas ---
     def _bomb_under_player(self):

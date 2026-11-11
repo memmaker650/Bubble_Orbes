@@ -43,7 +43,7 @@ def test_bombs_sit_on_platforms_away_from_start_with_enemies_in_reach():
     for n in range(10, 21):
         rows = LEVELS[index_of(n)].rows
         p_row = next(r for r, row in enumerate(rows) if "P" in row)
-        enemies = [(r, c) for r, row in enumerate(rows) for c, ch in enumerate(row) if ch in "EA"]
+        enemies = [(r, c) for r, row in enumerate(rows) for c, ch in enumerate(row) if ch in "EAN"]
         for r, row in enumerate(rows):
             for c, ch in enumerate(row):
                 if ch == "B":

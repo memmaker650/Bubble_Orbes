@@ -18,7 +18,7 @@ def step(world, n, actions=()):
 # --- JSON y generador ---
 
 def test_levels_are_loaded_from_json_in_order():
-    assert [lv.number for lv in LEVELS] == list(range(21))      # tutorial + 20 niveles
+    assert [lv.number for lv in LEVELS] == list(range(31))      # tutorial + 30 niveles
     assert (LEVELS_DIR / "level_00.json").exists()
 
 
@@ -33,9 +33,9 @@ def test_generator_template_produces_valid_levels():
     # lo que sí debe cumplirse es que la plantilla genere niveles válidos.
     gen = LevelGenerator()
     levels = gen.default_levels()
-    assert [lv.number for lv in levels] == list(range(21))
-    # el tutorial parte del mapa del nivel 1, pero sin monedas
-    assert levels[0].rows == [row.replace("C", " ") for row in levels[1].rows]
+    assert [lv.number for lv in levels] == list(range(31))
+    # el tutorial tiene su propio mapa (más alto que la pantalla), distinto del nivel 1
+    assert levels[0].rows != levels[1].rows and len(levels[0].rows) > 16
 
 
 def test_export_does_not_overwrite_hand_edited_levels(tmp_path):
@@ -114,7 +114,9 @@ def test_tutorial_guides_through_steps():
     assert w.tutorial_step == "bubble"
     step(w, 40)
     step(w, 1, {"bubble"})
-    assert w.tutorial_step == "trap"
+    step(w, 30)
+    # Según dónde caiga, la primera burbuja puede atrapar ya a un enemigo cercano
+    assert w.tutorial_step in ("trap", "pop")
     w.tutorial_done.update({"trap", "pop"})
     assert w.tutorial_step == "clear"
     for e in w.enemies:
@@ -184,7 +186,7 @@ def test_readme_documents_every_map_character():
     section = readme.split("### Caracteres del mapa", 1)[1].split("Reglas del mapa", 1)[0]
     documented = set(re.findall(r"^\|\s*`(.)`\s*\|", section, re.M))
     accepted = set()
-    for ch in "#=LPSEABHC XYZ@0":
+    for ch in "#=@0 " + "".join(chr(c) for c in range(ord("A"), ord("Z") + 1)):
         rows = ["         "] * 15 + ["P   " + (ch if ch != "P" else " ") + "    "]
         try:
             parse_level(rows)
@@ -192,3 +194,50 @@ def test_readme_documents_every_map_character():
         except ValueError:
             pass
     assert documented == accepted, (documented, accepted)
+
+
+
+# --- mapa propio del tutorial ---
+
+def test_tutorial_has_the_three_enemy_types_and_they_are_harmless():
+    w = World(0, seed=1)
+    assert {e.kind for e in w.enemies} == {"tongue", "laser", "knife"}
+    assert not LEVELS[0].enemies_attack
+
+
+def test_tutorial_is_taller_than_the_screen_and_starts_at_the_bottom():
+    from bubblequest import settings as S
+    w = World(0, seed=1)
+    assert w.scrolls and w.height > S.FIELD_H
+    assert w.camera_y == w.height - S.FIELD_H              # empieza abajo
+    assert w.star.rect.bottom < w.camera_y                  # la estrella no se ve: hay que subir
+
+
+def test_tutorial_can_be_completed_climbing_with_scroll():
+    from test_generated_levels import _climb
+    w = World(0, seed=1)
+    for e in w.enemies:
+        e.alive = False
+    w.player.invuln = 999
+    _climb(w, LEVELS[0].rows)
+    assert w.state == "won" and w.camera_y < 40             # la cámara subió con el jugador
+
+
+def test_tutorial_last_hint_explains_scroll():
+    from bubblequest import translations
+    from bubblequest.translations import t
+    translations.set_language("es")
+    assert "arriba" in t("tutorial.star")
+
+
+def test_platforms_are_at_most_three_rows_apart_in_every_level():
+    """Un salto completo sube 3 filas: si hay más hueco, ese tramo no se puede subir."""
+    for lv in LEVELS:
+        rows = [i for i, r in enumerate(lv.rows) if "=" in r] + [len(lv.rows)]  # + el suelo
+        gaps = [b - a for a, b in zip(rows, rows[1:])]
+        assert max(gaps) <= 3, (lv.number, gaps)
+
+
+def test_tutorial_star_is_not_hidden_by_the_hint_box():
+    """La ayuda del tutorial se dibuja sobre la fila 0: la estrella no puede estar ahí."""
+    assert "S" not in LEVELS[0].rows[0]

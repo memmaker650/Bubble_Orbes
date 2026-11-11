@@ -188,7 +188,7 @@ def test_start_and_star_follow_the_layout_rules(number):
         assert s_row == (0 if layout == "middle_up" else n - 1)
     # Nadie le ataca nada más empezar
     for r, row in enumerate(rows):
-        if "E" in row or "A" in row:
+        if any(ch in row for ch in "EAN"):
             assert abs(r - p_row) > SAFE_ROWS, (number, r)
 
 

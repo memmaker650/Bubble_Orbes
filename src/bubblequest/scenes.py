@@ -432,9 +432,7 @@ class GameScene(Scene):
         if w.tutorial_step is not None:
             self._draw_tutorial_hint(surf, w.tutorial_step)
         if w.message_timer > 0 and w.state == "playing":
-            draw_message_box(surf, [(self.font, t(w.message), S.WHITE)],
-                             center=(S.LOGICAL_W // 2, S.HUD_H + S.FIELD_H // 2),
-                             accent=S.STAR_YELLOW)
+            self._draw_message(surf, w)
         if self._overlay_visible():
             self._draw_overlay(surf)
 
@@ -469,13 +467,34 @@ class GameScene(Scene):
             y = S.HUD_H + S.FIELD_H - 10
             pygame.draw.polygon(surf, S.WHITE, [(cx - 6, y - 5), (cx, y + 3), (cx + 6, y - 5)])
 
+    def _draw_top_hint(self, surf, text, bottom=False):
+        """Aviso informativo en una franja fina arriba (sobre la fila 0 del nivel), para no
+        tapar la zona de juego: la guía del tutorial y los avisos de los niveles normales.
+        Con ``bottom`` la franja va abajo del todo de la zona de juego."""
+        y = (S.HUD_H + S.FIELD_H - S.BORDER - S.TILE // 2) if bottom else \
+            (S.HUD_H + S.BORDER + S.TILE // 2)
+        return draw_message_box(surf, [(self.small, text, S.STAR_YELLOW)],
+                                center=(S.LOGICAL_W // 2, y),
+                                width=S.FIELD_W - 2 * S.BORDER, padding=6, gap=4,
+                                accent=S.STAR_YELLOW)
+
     def _draw_tutorial_hint(self, surf, step):
         keys = "" if IS_IOS else " (Z)"
-        # En la fila 0, que está libre en el tutorial
-        draw_message_box(surf, [(self.small, t(f"tutorial.{step}", keys=keys), S.STAR_YELLOW)],
-                         center=(S.LOGICAL_W // 2, S.HUD_H + S.BORDER + S.TILE // 2),
-                         width=S.FIELD_W - 2 * S.BORDER, padding=6, gap=4,
-                         accent=S.STAR_YELLOW)
+        return self._draw_top_hint(surf, t(f"tutorial.{step}", keys=keys))
+
+    def _draw_message(self, surf, w):
+        """Aviso temporal (p. ej. "Mata a todos los enemigos..." al tocar la estrella antes de
+        tiempo). En los niveles normales, arriba como la ayuda del tutorial para no tapar la
+        zona de juego; en el tutorial, centrado, porque arriba ya está la guía de pasos."""
+        if w.tutorial:
+            return draw_message_box(surf, [(self.font, t(w.message), S.WHITE)],
+                                    center=(S.LOGICAL_W // 2, S.HUD_H + S.FIELD_H // 2),
+                                    accent=S.STAR_YELLOW)
+        # Arriba, salvo que el jugador esté en esa parte de la pantalla (p. ej. tocando una
+        # estrella en lo alto del nivel): entonces abajo, para no taparle a él ni a la estrella
+        player_y = S.HUD_H + w.player.rect.top - round(w.camera_y)
+        return self._draw_top_hint(surf, t(w.message),
+                                   bottom=player_y < S.HUD_H + 3 * S.TILE)
 
     def _draw_popup(self, surf, x, y, text, color, alpha):
         """Texto de puntos flotante, con un contorno oscuro para que se lea sobre el fondo."""
@@ -834,6 +853,9 @@ class GameScene(Scene):
         surf.blit(leaned, leaned.get_rect(midbottom=(x, y + below)))
 
     def _draw_enemy_body(self, surf, e):
+        if e.kind == "knife":
+            self._draw_knife_enemy(surf, e)
+            return
         color = S.enemy_color(e.kind, e.angry)
         pygame.draw.rect(surf, color, e.rect, border_radius=8)
         if e.kind == "tongue":
@@ -849,6 +871,55 @@ class GameScene(Scene):
                 pygame.draw.circle(surf, S.BLACK, pupil, 2)
         if e.kind == "laser" and e.attack == "fire":
             self._draw_laser(surf, e)
+
+    # --- enemigo naranja (cuchillo) ---
+    def _draw_knife_enemy(self, surf, e):
+        """Naranja con cejas de enfadado y un cuchillo. Agachado: se aplasta (bajar y subir
+        rápido). Cuchillada: el brazo sale con el cuchillo, se mantiene y se retrae."""
+        d = e.direction
+        k = 0.0
+        if e.crouching:                                 # 0 de pie .. 1 agachado del todo
+            down = S.CROUCH_TIME - e.crouch_t
+            k = min(1.0, down / 0.08, e.crouch_t / 0.08)
+        h = round(32 - 14 * k)
+        body = pygame.Rect(0, 0, round(28 + 6 * k), h)
+        body.midbottom = e.rect.midbottom
+        color = S.enemy_color(e.kind, e.angry)
+        dark = tuple(round(c * 0.7) for c in color)
+        pygame.draw.rect(surf, color, body, border_radius=8)
+        pygame.draw.rect(surf, dark, body, 1, border_radius=8)
+        # Ojos y cejas (más juntos y bajos al agacharse)
+        ey = body.y + round(10 * h / 32) + 1
+        for dx in (-6, 6):
+            eye = (body.centerx + dx, ey)
+            pygame.draw.circle(surf, S.WHITE, eye, 4)
+            pygame.draw.circle(surf, S.BLACK, (eye[0] + d * 2, eye[1]), 2)
+            inner = eye[0] - (1 if dx > 0 else -1) * 1          # cejas en V: enfadado
+            outer = eye[0] + (1 if dx > 0 else -1) * 5
+            pygame.draw.line(surf, dark, (outer, ey - 7), (inner, ey - 4), 2)
+        # Cuchillo
+        front = body.right if d > 0 else body.left
+        hy = body.y + round(19 * h / 32)
+        ext = e.stab_extension if e.kind == "knife" else 0.0
+        if e.crouching:                                 # agachado: cuchillo pegado al cuerpo
+            tip = (front + d * 14, hy + 3)
+        else:                                           # misma punta que la zona de daño
+            tip = (front + d * (S.KNIFE_REST + S.KNIFE_REACH * ext), hy)
+        base = (tip[0] - d * 14, tip[1])                # inicio de la hoja (fin del mango)
+        grip = (base[0] - d * 6, base[1])               # mano
+        if ext > 0:                                     # brazo estirado hasta la mano
+            pygame.draw.line(surf, dark, (front - d * 3, hy), grip, 5)
+        pygame.draw.circle(surf, color, grip, 4)
+        pygame.draw.circle(surf, dark, grip, 4, 1)
+        pygame.draw.line(surf, S.KNIFE_HANDLE, grip, base, 4)              # mango
+        blade = [(base[0], base[1] - 3), tip, (base[0], base[1] + 2)]
+        pygame.draw.polygon(surf, S.KNIFE_BLADE, blade)                   # hoja
+        pygame.draw.line(surf, S.KNIFE_EDGE, (base[0], base[1] - 2), tip, 1)
+        if e.stab_phase == "out":                       # estela al lanzar la cuchillada
+            for i, off in enumerate((-5, 0, 5)):
+                x0 = tip[0] - d * (10 + 6 * i)
+                pygame.draw.line(surf, (255, 240, 200), (x0, tip[1] + off),
+                                 (x0 - d * 8, tip[1] + off), 1)
 
     def _draw_tongue(self, surf, e):
         rect = e.attack_rect()

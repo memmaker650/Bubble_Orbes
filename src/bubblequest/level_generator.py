@@ -41,13 +41,47 @@ TEMPLATE = [
 ]
 EMPTY = " " * 9
 
+# Tutorial (nivel 0): mapa propio, más alto que la pantalla (27 filas) para enseñar el scroll
+# vertical. Se empieza abajo y la estrella está arriba. Tiene los tres tipos de enemigo
+# (inofensivos en el tutorial), de abajo arriba por dificultad: un rojo cerca del inicio para
+# practicar atrapar y reventar, el naranja (se agacha para esquivar) y el azul; y monedas.
+TUTORIAL_MAP = [
+    "         ",   # fila 0 libre: ahí se dibuja la ayuda del tutorial (taparía la estrella)
+    "    S    ",
+    "         ",
+    "  =====  ",
+    "         ",
+    "E      C ",
+    "===   ===",
+    "         ",
+    "   A     ",
+    "  =====  ",
+    "         ",
+    " C      N",
+    "===   ===",
+    "         ",
+    "         ",
+    "  =====  ",
+    "         ",
+    "         ",
+    "===   ===",
+    "         ",
+    "  E      ",
+    "  =====  ",
+    "         ",
+    "         ",
+    "===   ===",
+    "         ",
+    "    P    ",
+]
+
 # Nivel alto (32 filas = 2 pantallas): se empieza abajo y se sube con scroll vertical.
 # Plataformas cada 3 filas alternando centro (columnas 2-6) y laterales (0-2 y 6-8); se pasa
 # de unas a otras por las columnas 2 y 6. Los ladrillos (L) sirven de parapeto: bloquean el
 # paso, la vista de los enemigos, la lengua, el láser y las burbujas.
 TALL_LEVEL = [
     "    S    ",
-    "  A L E  ",
+    "  N L E  ",
     "  =====  ",
     "         ",
     "E       L",
@@ -56,19 +90,19 @@ TALL_LEVEL = [
     "    L    ",
     "  =====  ",
     "         ",
-    "A       E",
+    "N       E",
     "===   ===",
     "         ",
-    "   L A   ",
+    "   L N   ",
     "  =====  ",
     "         ",
-    "LE      A",
+    "LE      N",
     "===   ===",
     "         ",
     "  E L    ",
     "  =====  ",
     "         ",
-    "E       A",
+    "E       N",
     "===   ===",
     "         ",
     "    L    ",
@@ -88,7 +122,7 @@ CENTER_PLATFORMS = ("  =====  ", " ======= ", "  == ==  ")
 SIDE_PLATFORMS = ("===   ===", "=== = ===", "==== ====")
 TOP_PLATFORMS = ("  =====  ", " ======= ")     # la de la estrella: sin hueco en el centro
 PATH_COLS = (2, 6)
-FIRST_GENERATED, LAST_GENERATED = 5, 20
+FIRST_GENERATED, LAST_GENERATED = 5, 30
 
 
 def coin_count(rows) -> int:
@@ -175,7 +209,7 @@ def set_layout(rows, layout, number) -> list[str]:
     # Enemigos demasiado cerca del inicio: a otra plataforma, lejos (siempre los mismos)
     rng = random.Random(number * 31337)
     near = [(r, c) for r in range(n) for c in range(9)
-            if grid[r][c] in "EA" and abs(r - start[0]) <= SAFE_ROWS]
+            if grid[r][c] in "EAN" and abs(r - start[0]) <= SAFE_ROWS]
     far = [(r, c) for r in range(n - 1) for c in range(9)
            if on_platform(r, c) and abs(r - start[0]) > SAFE_ROWS + 2 and (r, c) != star]
     rng.shuffle(far)
@@ -207,7 +241,7 @@ def place_bombs(rows, number) -> list[str]:
     grid = [list(row) for row in rows]
     n = len(grid)
     p_row = next(r for r, row in enumerate(rows) if "P" in row)
-    enemies = [(r, c) for r in range(n) for c in range(9) if grid[r][c] in "EA"]
+    enemies = [(r, c) for r in range(n) for c in range(9) if grid[r][c] in "EAN"]
     reach = S.BOMB_RADIUS / S.TILE                     # radio en casillas
 
     def hits(r, c):
@@ -231,9 +265,53 @@ def place_bombs(rows, number) -> list[str]:
     return result
 
 
+ENEMIES_PER_ROW = 25 / 67      # densidad del nivel 20 (25 enemigos en 67 filas)
+
+
+def level_rows(number) -> int:
+    """Alto de los niveles generados: +3 filas por nivel hasta el 25 (22 -> 82) y +6 desde
+    el 26 (88 -> 112)."""
+    if number <= 25:
+        return 22 + 3 * (number - FIRST_GENERATED)
+    return level_rows(25) + 6 * (number - 25)
+
+
 def _progress(number):
-    """0 en el primer nivel generado, 1 en el último."""
-    return (number - FIRST_GENERATED) / (LAST_GENERATED - FIRST_GENERATED)
+    """0 en el nivel 5 y 1 en el 20 (más allá sigue creciendo). Fijo sobre ese tramo para que
+    los niveles 5-20 no cambien al añadir niveles nuevos."""
+    return (number - FIRST_GENERATED) / (20 - FIRST_GENERATED)
+
+
+# --- Tipos de enemigo (niveles 5+) ---
+FIRST_LASER_LEVEL = 5          # los azules (ojos rojos, láser) aparecen desde aquí...
+KNIFE_SHARE = 0.25             # ...el resto, rojos y algunos naranjas
+
+
+def laser_count(enemies, number) -> int:
+    """Azules del nivel: 1 en el 5, 2 en el 6... uno más por nivel, como mucho la mitad."""
+    if number < FIRST_LASER_LEVEL:
+        return 0
+    return min(number - FIRST_LASER_LEVEL + 1, enemies // 2)
+
+
+def assign_enemy_kinds(rows, number) -> list[str]:
+    """Decide el tipo de cada enemigo (E rojo, A azul, N naranja) sin moverlo de su casilla:
+    `laser_count` azules repartidos por todo el nivel y el resto rojos con algunos naranjas.
+    Sirve para niveles retocados a mano. Siempre igual para el mismo mapa y número."""
+    if number < FIRST_LASER_LEVEL:
+        return list(rows)
+    grid = [list(row) for row in rows]
+    cells = sorted((r, c) for r, row in enumerate(grid) for c, ch in enumerate(row) if ch in "EAN")
+    n = len(cells)
+    lasers = laser_count(n, number)
+    laser_idx = {min(n - 1, int((i + 0.5) * n / lasers)) for i in range(lasers)} if lasers else set()
+    rng = random.Random(number * 7907)
+    for i, (r, c) in enumerate(cells):
+        if i in laser_idx:
+            grid[r][c] = "A"
+        else:
+            grid[r][c] = "N" if rng.random() < KNIFE_SHARE else "E"
+    return ["".join(row) for row in grid]
 
 
 class LevelGenerator:
@@ -255,12 +333,12 @@ class LevelGenerator:
 
     def default_levels(self) -> list[LevelDef]:
         """Niveles del juego. El tutorial (0) usa el mismo mapa que el nivel 1."""
-        level1 = self.build_map(m="A")                                  # 2 rojos + 1 azul
         return [
-            self.make(0, level1, tutorial=True, enemies_attack=False),     # sin monedas
-            self.make(1, place_coins(level1, 1)),
-            self.make(2, place_coins(self.build_map(r3="   E A   ", m="A"), 2)),
-            self.make(3, place_coins(self.build_map(r3="   A A   ", r12="E       A"), 3)),
+            self.make(0, self.tutorial_map(), tutorial=True, enemies_attack=False),
+            # Niveles 1 y 2: el enemigo naranja (cuchillo) en lugar de los azules (láser)
+            self.make(1, place_coins(self.build_map(m="N"), 1)),           # 2 rojos + 1 naranja
+            self.make(2, place_coins(self.build_map(r3="   E N   ", m="N"), 2)),
+            self.make(3, place_coins(self.build_map(r3="   N N   ", r12="E       N"), 3)),
             self.make(4, place_coins(self.tall_map(), 4), name="La torre"),
         ] + [self.make(n, self.generated_map(n)) for n in range(FIRST_GENERATED, LAST_GENERATED + 1)]
 
@@ -269,7 +347,7 @@ class LevelGenerator:
         cantidad variable de ladrillos protectores. Siempre igual para el mismo número."""
         rng = random.Random(number * 7919)
         k = _progress(number)
-        rows = 22 + 3 * (number - FIRST_GENERATED)        # 22 ... 67 filas
+        rows = level_rows(number)                          # 22 ... 112 filas
         grid = [[" "] * 9 for _ in range(rows)]
         grid[0][4] = "S"                                   # estrella arriba del todo
         grid[rows - 1][4] = "P"                            # el jugador empieza abajo
@@ -294,7 +372,7 @@ class LevelGenerator:
         # tendencia a menos en los niveles finales. Nunca en las columnas de paso ni junto a
         # la estrella.
         many = rng.random() < 0.5
-        share = (0.30 if many else 0.12) * (1.0 - 0.5 * k)
+        share = (0.30 if many else 0.12) * (1.0 - 0.5 * min(k, 1.0))   # desde el 20, estable
         n_bricks = max(1, round(len(plat_rows) * 3 * share))
         bricks = [(r, c) for r, c in spots
                   if c not in PATH_COLS and not (r == top - 1 and 3 <= c <= 5)][:n_bricks]
@@ -303,7 +381,10 @@ class LevelGenerator:
 
         # Enemigos: cada vez más, y más azules (láser)
         free = [(r, c) for r, c in spots if (r, c) not in bricks and r < rows - 4]
-        n_enemies = min(len(free), round(7 + 18 * k))
+        if number <= 20:
+            n_enemies = min(len(free), round(7 + 18 * k))
+        else:   # niveles 21+: misma densidad que el 20 (enemigos por fila), no más apiñados
+            n_enemies = min(len(free), round(len(grid) * ENEMIES_PER_ROW))
         laser_share = 0.35 + 0.25 * k
         for r, c in free[:n_enemies]:
             grid[r][c] = "A" if rng.random() < laser_share else "E"
@@ -321,9 +402,15 @@ class LevelGenerator:
 
         result = place_coins(["".join(row) for row in grid], number)   # al final: no altera lo demás
         result = set_layout(result, layout_for(number), number)       # inicio y estrella
+        result = assign_enemy_kinds(result, number)                   # rojos, azules, naranjas
         result = place_bombs(result, number)                          # bombas (nivel 10+)
         parse_level(result)
         return result
+
+    def tutorial_map(self) -> list[str]:
+        rows = list(TUTORIAL_MAP)
+        parse_level(rows)
+        return rows
 
     def tall_map(self) -> list[str]:
         rows = list(TALL_LEVEL)

@@ -11,6 +11,7 @@ tiene más de 16, el nivel es más alto que la pantalla y se hace scroll vertica
   B  bomba: se enciende con una burbuja o con la acción encima; explota a los 3 s
   P  inicio del jugador E  enemigo rojo (lengua)
   A  enemigo azul (láser por los ojos)
+  N  enemigo naranja (cuchillo, cuerpo a cuerpo; se agacha para esquivar burbujas)
   S  estrella de fin de nivel
 """
 
@@ -129,7 +130,7 @@ def parse_level(rows) -> LevelData:
                 oneway.append(Rect(x, y, S.TILE, 12))
             elif ch == "P":
                 spawn = (x, y)
-            elif ch in "EA":
+            elif ch in "EAN":
                 enemies.append((x, y, ch))
             elif ch == "S":
                 star = (x, y)

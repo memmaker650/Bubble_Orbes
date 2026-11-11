@@ -74,6 +74,22 @@ LASER_DURATION = 1.0           # el rayo dura 1 s
 LASER_RECHARGE = 4.0           # y necesita 4 s para recargar
 LASER_REACH_NORMAL = 180       # ataque normal: hasta la mitad del ancho; súper: hasta el muro
 
+# Zonas de enemigos (niveles con scroll): el nivel se divide en franjas horizontales de unas
+# ZONE_ROWS filas y cada enemigo no sale de la suya (evita que se amontonen abajo).
+ZONE_ROWS = 15
+
+# Enemigo naranja: cuchillo (cuerpo a cuerpo) y se agacha para esquivar burbujas
+KNIFE_REACH = 26               # lo que sale el cuchillo al lanzar la cuchillada...
+KNIFE_REST = 20                # ...desde su posición de reposo (punta a 20 px del cuerpo)
+STAB_OUT = 0.12                # lanzar la cuchillada
+STAB_HOLD = 0.12               # cuchillo estirado
+STAB_IN = 0.25                 # retraer la cuchillada
+KNIFE_COOLDOWN = 1.0
+DODGE_RANGE = 110              # ve venir una burbuja a esta distancia...
+DODGE_CHANCE = 0.7             # ...y se agacha a veces (no siempre: si no, sería invencible)
+CROUCH_TIME = 0.55             # tiempo agachado (la burbuja le pasa por encima)
+CROUCH_COOLDOWN = 1.6          # tiempo antes de poder volver a agacharse
+
 # Ataque normal: si el jugador está cerca (dentro del alcance normal); recarga normal.
 # Súper ataque: si está más lejos (hasta el alcance máximo); recarga este número de veces más.
 SUPER_COOLDOWN_FACTOR = 2.0
@@ -179,12 +195,20 @@ ENEMY = (235, 90, 90)
 ENEMY_BLUE = (80, 130, 240)
 ENEMY_ANGRY = (255, 60, 60)
 ENEMY_BLUE_ANGRY = (40, 90, 255)
+ENEMY_ORANGE = (250, 150, 40)
+ENEMY_ORANGE_ANGRY = (255, 105, 0)
+KNIFE_BLADE = (200, 206, 220)
+KNIFE_EDGE = (245, 248, 255)
+KNIFE_HANDLE = (110, 70, 40)
 
 
 def enemy_color(kind, angry=False):
-    """Color de un enemigo según su tipo ("tongue" rojo, "laser" azul) y si está enfadado."""
+    """Color de un enemigo según su tipo ("tongue" rojo, "laser" azul, "knife" naranja) y si
+    está enfadado."""
     if kind == "laser":
         return ENEMY_BLUE_ANGRY if angry else ENEMY_BLUE
+    if kind == "knife":
+        return ENEMY_ORANGE_ANGRY if angry else ENEMY_ORANGE
     return ENEMY_ANGRY if angry else ENEMY
 TONGUE = (255, 120, 170)
 LASER = (255, 40, 40)

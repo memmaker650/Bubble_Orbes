@@ -6,6 +6,7 @@ from bubblequest import settings as S
 from bubblequest.level_generator import place_coins
 from bubblequest.levels import LEVELS, index_of, parse_level
 from bubblequest.world import World
+from enemy_helpers import enemy_of  # noqa: E402
 
 DT = 1 / 60
 
@@ -19,7 +20,7 @@ def test_every_level_has_two_or_three_coins_by_size():
     for lv in LEVELS:
         coins = sum(row.count("C") for row in lv.rows)
         if lv.tutorial:
-            assert coins == 0
+            assert coins == 2                    # el tutorial tiene su propio mapa con 2
         else:
             assert coins == (2 if len(lv.rows) <= 20 else 3), lv.number
 
@@ -104,7 +105,7 @@ from bubblequest.entities import Bubble, LaserEnemy, TongueEnemy  # noqa: E402
 
 def _pop_enemy(cls, angry=False):
     w = World(1, seed=1)
-    e = next(x for x in w.enemies if isinstance(x, cls))
+    e = enemy_of(w, cls)
     e.angry = angry
     b = Bubble(*e.rect.center, 1)
     e.trap()
