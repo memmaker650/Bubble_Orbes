@@ -21,6 +21,12 @@ from .world import World
 IS_IOS = sys.platform == "ios"
 _BTN_X = (S.LOGICAL_W - 260) // 2      # botones de menú centrados
 _SCORES_X = (S.LOGICAL_W - 300) // 2
+_TOWER_BASE = S.LOGICAL_H // 2 + 200  # y de la base de la torre (sobre la cima de la colina)
+_TOWER_FLAG_H = 46                    # alto del banderín sobre las almenas
+_TOWER_TOP = _TOWER_FLAG_H + 8        # y de las almenas: deja sitio arriba para el banderín
+_HILL_FLAT_W = 100                    # cima plana de la colina (bajo la torre)
+_HILL_FOOT_X = 300                    # donde la ladera llega al borde inferior
+_MENU_PLAYER_SCALE = 1.5              # personaje del menú: 50 % más grande que en el juego
 log = logging.getLogger(__name__)
 
 
@@ -49,6 +55,9 @@ class MenuScene(Scene):
         self.font = pygame.font.Font(None, 38)
         self.small = pygame.font.Font(None, 22)
         self.t = 0.0
+        # Torre de fondo: base en la colina (_TOWER_BASE) y almenas en _TOWER_TOP, 74 px de ancho
+        self.tower = castle_tower(height=_TOWER_BASE - _TOWER_TOP, width=74)
+        self.hill = menu_hill()
         self._build_buttons()
 
     def _build_buttons(self):
@@ -121,19 +130,144 @@ class MenuScene(Scene):
 
     def draw(self, surf):
         surf.fill(S.BG)
+        surf.blit(self.hill, (0, 0))
+        surf.blit(self.tower, self.tower.get_rect(bottomleft=(S.BORDER, _TOWER_BASE)))
         for i in range(6):  # orbes decorativos flotando
             x = (S.LOGICAL_W - 280) // 2 + i * 56
             y = 240 - ((self.t * 30 + i * 70) % 260) + 120
             r = 12 + (i % 3) * 5
             pygame.draw.circle(surf, S.BUBBLE, (x + math.sin(self.t + i) * 12, y), r, 2)
-        title = "BUBBLEQUEST"
-        draw_text(surf, fit_font(self.title_font, title, S.LOGICAL_W - 2 * S.BORDER - 16), title,
-                  S.BUBBLE, center=(S.LOGICAL_W // 2, 200))
-        draw_text(surf, self.small, t("menu.subtitle"), S.WHITE,
-                  center=(S.LOGICAL_W // 2, 270))
+
+        # Personaje (50 % más grande que en el juego), flotando un poco sobre el título
+        w, h = round(28 * _MENU_PLAYER_SCALE), round(32 * _MENU_PLAYER_SCALE)
+        bob = round(math.sin(self.t * 2.5) * 4)
+        player = pygame.Rect(0, 0, w, h)
+        player.midbottom = (S.LOGICAL_W // 2, 128 + bob)
+        draw_player_sprite(surf, player, 1)
+
+        # Título en dos líneas: "BUBBLE" y, debajo y desplazado a la derecha, "QUEST"
+        max_w = S.LOGICAL_W - 2 * S.BORDER - 16
+        font = fit_font(self.title_font, "BUBBLE", max_w)
+        # Con sombra oscura para que se lean bien delante de la torre
+        cx = S.LOGICAL_W // 2
+        for text, fnt, color, (x, y), d in (("BUBBLE", font, S.BUBBLE, (cx - 20, 172), 3),
+                                            ("QUEST", font, S.BUBBLE, (cx + 50, 238), 3),
+                                            (t("menu.subtitle"), self.small, S.WHITE,
+                                             (cx, 296), 1)):
+            draw_text(surf, fnt, text, S.BG, center=(x + d, y + d))
+            draw_text(surf, fnt, text, color, center=(x, y))
         for _, button in self.buttons:
             button.draw(surf, self.font)
         self.lang_button.draw(surf)
+
+
+def draw_player_sprite(surf, rect, facing):
+    """Cuerpo del personaje mirando a ``facing`` (1 derecha, -1 izquierda). Las medidas se
+    escalan con el tamaño del rectángulo (28x32 en el juego)."""
+    k = rect.width / 28
+    pygame.draw.rect(surf, S.PLAYER, rect, border_radius=round(10 * k))
+    ex = rect.centerx + facing * 5 * k
+    ey = rect.y + 12 * k
+    pygame.draw.circle(surf, S.WHITE, (ex, ey), 5 * k)
+    pygame.draw.circle(surf, S.BLACK, (ex + facing * 2 * k, ey), 2 * k)
+
+
+def castle_tower(height=256, width=74):
+    """Torre de castillo de piedra: almenas arriba, sillares, saeteras, una ventana con
+    arco, la puerta abajo y un banderín en lo alto. Devuelve una superficie transparente."""
+    flag_h = _TOWER_FLAG_H
+    merlon = 12                                       # alto de las almenas
+    img = pygame.Surface((width + 26, height + flag_h), pygame.SRCALPHA)
+    img.fill((0, 0, 0, 0))
+    top = flag_h + merlon                             # arriba del muro (bajo las almenas)
+    wall = pygame.Rect(0, top, width, height - merlon)
+    pygame.draw.rect(img, S.STONE, wall)
+
+    # Sillares: hileras de bloques alternos
+    row_h, block_w = 16, 20
+    for i, y in enumerate(range(wall.y, wall.bottom, row_h)):
+        pygame.draw.line(img, S.STONE_DARK, (0, y), (width - 1, y), 1)
+        offset = 0 if i % 2 else block_w // 2
+        for x in range(offset, width, block_w):
+            pygame.draw.line(img, S.STONE_DARK, (x, y), (x, min(y + row_h, wall.bottom)), 1)
+
+    # Almenas (merlones con huecos)
+    gap = width // 5
+    for i in range(0, 5, 2):
+        pygame.draw.rect(img, S.STONE, (i * gap, flag_h, gap, merlon + 1))
+        pygame.draw.rect(img, S.STONE_DARK, (i * gap, flag_h, gap, merlon + 1), 1)
+    # Cornisa bajo las almenas
+    pygame.draw.rect(img, S.STONE_DARK, (0, top, width, 4))
+
+    # Banderín
+    pole_x = width // 2
+    pygame.draw.line(img, S.STONE_DARK, (pole_x, 2), (pole_x, flag_h + merlon), 3)
+    pygame.draw.polygon(img, S.ENEMY, [(pole_x + 1, 4), (pole_x + 24, 13), (pole_x + 1, 22)])
+
+    # Ventana con arco (iluminada) y saeteras
+    win = pygame.Rect(0, 0, 16, 26)
+    win.midtop = (width // 2, top + 28)
+    pygame.draw.rect(img, S.GOLD_DARK, win, border_top_left_radius=9, border_top_right_radius=9)
+    pygame.draw.rect(img, S.STONE_DARK, win, 2, border_top_left_radius=9,
+                     border_top_right_radius=9)
+    pygame.draw.line(img, S.STONE_DARK, (win.centerx, win.y + 4), (win.centerx, win.bottom), 2)
+    for y in range(top + 110, wall.bottom - 90, 95):
+        pygame.draw.rect(img, S.BG, (width // 2 - 3, y, 6, 22), border_radius=2)
+
+    # Puerta de madera con arco
+    door = pygame.Rect(0, 0, 26, 42)
+    door.midbottom = (width // 2, wall.bottom)
+    pygame.draw.rect(img, S.KNIFE_HANDLE, door, border_top_left_radius=15,
+                     border_top_right_radius=15)
+    pygame.draw.rect(img, S.STONE_DARK, door, 3, border_top_left_radius=15,
+                     border_top_right_radius=15)
+    pygame.draw.line(img, S.DIRT_DARK, (door.centerx, door.y + 4), (door.centerx, door.bottom), 2)
+
+    # Sombra en el lado derecho para dar volumen
+    pygame.draw.rect(img, S.STONE_DARK, (width - 6, top, 6, wall.height))
+    return img
+
+
+def hill_y(x):
+    """Altura del perfil de la colina del menú en ``x``: cima plana bajo la torre y ladera
+    suave (smoothstep) hasta el borde inferior de la pantalla."""
+    if x <= _HILL_FLAT_W:
+        return _TOWER_BASE
+    k = min(1.0, (x - _HILL_FLAT_W) / (_HILL_FOOT_X - _HILL_FLAT_W))
+    return _TOWER_BASE + (S.LOGICAL_H - _TOWER_BASE) * k * k * (3 - 2 * k)
+
+
+# Rocas de la colina: (x, y, radio, semilla de la forma)
+_HILL_ROCKS = ((34, 668, 15, 0), (96, 650, 9, 1), (128, 712, 13, 2), (58, 752, 19, 3),
+               (186, 778, 11, 4), (150, 668, 7, 5), (20, 792, 10, 6))
+
+
+def _rock_points(x, y, r, seed):
+    """Contorno irregular de una roca: algo más ancha que alta y con la base más plana."""
+    pts = []
+    n = 9
+    for i in range(n):
+        a = 2 * math.pi * (i + 0.3 * math.sin(seed + i)) / n
+        rr = r * (0.8 + 0.2 * math.sin(seed * 2.3 + i * 1.7))
+        dy = math.sin(a) * rr * 0.85
+        pts.append((x + math.cos(a) * rr * 1.1, y + (min(dy, r * 0.45) if dy > 0 else dy)))
+    return pts
+
+
+def menu_hill():
+    """Colina bajo la torre del menú y unas rocas, solo con contorno (sin relleno).
+    Devuelve una capa transparente del tamaño de la pantalla."""
+    layer = transparent_layer((S.LOGICAL_W, S.LOGICAL_H))
+    profile = [(x, hill_y(x)) for x in range(0, _HILL_FOOT_X + 1, 4)]
+    pygame.draw.lines(layer, S.STONE, False, profile, 2)
+    for x, y, r, seed in _HILL_ROCKS:
+        pts = _rock_points(x, y, r, seed)
+        pygame.draw.polygon(layer, S.STONE, pts, 2)
+        if r >= 12:                                          # grieta en las rocas grandes
+            pygame.draw.lines(layer, S.STONE, False,
+                              [(x - r * 0.3, y - r * 0.5), (x, y - r * 0.1),
+                               (x - r * 0.15, y + r * 0.25)], 1)
+    return layer
 
 
 def get_difficulty(db) -> str:
@@ -821,10 +955,7 @@ class GameScene(Scene):
     def _draw_player(self, surf, p):
         if p.invuln > 0 and int(self.t * 10) % 2 == 0:
             return  # parpadeo
-        pygame.draw.rect(surf, S.PLAYER, p.rect, border_radius=10)
-        ex = p.rect.centerx + p.facing * 5
-        pygame.draw.circle(surf, S.WHITE, (ex, p.rect.y + 12), 5)
-        pygame.draw.circle(surf, S.BLACK, (ex + p.facing * 2, p.rect.y + 12), 2)
+        draw_player_sprite(surf, p.rect, p.facing)
 
     def _draw_enemy(self, surf, e):
         if e.kind == "tongue" and e.tired and not e.attacking:
