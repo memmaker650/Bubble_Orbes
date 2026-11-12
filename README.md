@@ -112,6 +112,8 @@ Reglas del mapa:
 
 - **9 columnas** por fila y **16 filas o más**. Con más de 16 el nivel es más alto que la pantalla
   y se hace scroll vertical (limitado al alto del mapa).
+  En esos niveles, una **bola roja en el borde derecho** marca a qué altura está el jugador:
+  abajo del todo con los pies en el suelo y arriba del todo en lo más alto del nivel.
 - Solo se describe el **interior**: los bordes (finos) se añaden solos alrededor.
 - Enemigos, botiquines, monedas, bombas y gemas conviene ponerlos justo **encima de una plataforma** (`=`).
 - Un salto completo (doble pulsación) sube unas **3 filas**: las plataformas deben estar como mucho
@@ -171,6 +173,8 @@ JSON: al cargar el nivel, cada `B` se convierte en una bomba apagada en esa casi
   (`BOMB_RADIUS`, unos 2,5 cm en un iPhone, 3,5 casillas) en cualquier dirección, aunque haya
   muros en medio, también a los atrapados en burbujas. Al jugador no le hace daño. Enciende las
   bombas que pille dentro del radio (reacción en cadena). Deja humo gris que se difumina.
+- La cuenta atrás **no se para si el jugador muere**: la bomba explota igual mientras cae y
+  elimina a los enemigos de alrededor; después desaparece, como cualquier bomba que ha explotado.
 - Cada explosión queda registrada en el log (posición, enemigos eliminados y bombas encendidas
   en cadena).
 - El generador (`place_bombs` en `level_generator.py`) pone **1 bomba en los niveles 10 a 12**

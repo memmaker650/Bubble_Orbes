@@ -184,6 +184,9 @@ class World:
         self._update_explosions(dt)
         self._update_camera(dt)
         if self.state == "dying":
+            # La acción se para, pero las bombas encendidas siguen su cuenta atrás: explotan
+            # y eliminan a los enemigos de alrededor aunque el jugador esté muriendo.
+            self._update_bombs(dt)
             self._update_dying(dt)
             return
         if self.state == "won":

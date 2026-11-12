@@ -180,3 +180,35 @@ def test_explosion_is_logged(caplog):
     msg = msgs[0]
     assert "nivel 1" in msg and "columna 4, fila 15" in msg
     assert "1 enemigos eliminados" in msg and "1 bombas encendidas en cadena" in msg
+
+
+# --- la mecha no se para si muere el jugador ---
+
+def test_lit_bomb_keeps_counting_and_explodes_while_player_dies():
+    w, m = _world_with_bomb(col=4)
+    m.light()
+    step(w, int((S.BOMB_FUSE - 0.6) * 60))                    # quedan ~0,6 s de mecha
+    w.player.invuln = 0
+    w.hit_player(S.DAMAGE_ATTACK)                              # muere con la mecha encendida
+    e = next(e for e in w.enemies if e.alive and e.state == "walk")
+    e.rect.center = (m.rect.centerx + 60, m.rect.centery)      # dentro del radio
+    e.fx, e.fy = float(e.rect.x), float(e.rect.y)
+    assert w.state == "dying" and m.timer < w.death_duration
+    fuse = m.timer
+    step(w, 10)
+    assert m.timer < fuse                                      # la cuenta atrás sigue
+    for _ in range(int(S.BOMB_FUSE * 60)):
+        if m not in w.bombs:
+            break
+        w.update(DT, set())
+    assert w.state == "dying", "debe explotar durante la muerte, no después de reaparecer"
+    assert m not in w.bombs and w.explosions                  # ha explotado y ya no está
+    assert not e.alive                                         # y ha eliminado al enemigo
+
+
+def test_unlit_bomb_stays_while_player_dies():
+    w, m = _world_with_bomb(col=4)
+    w.player.invuln = 0
+    w.hit_player(S.DAMAGE_ATTACK)
+    step(w, 120)
+    assert m in w.bombs and not m.lit

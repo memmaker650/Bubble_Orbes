@@ -275,6 +275,32 @@ def menu_hill():
     return layer
 
 
+_HEIGHT_MARKER_R = 6                  # radio de la bola roja de altura (el borde mide 12 px)
+
+
+def height_marker_range() -> tuple[int, int]:
+    """(y de arriba, y de abajo) en pantalla del recorrido de la bola de altura: todo el
+    alto del borde derecho del campo."""
+    margin = _HEIGHT_MARKER_R + 3
+    return S.HUD_H + margin, S.HUD_H + S.FIELD_H - margin
+
+
+def height_progress(w) -> float:
+    """Altura del jugador en el nivel: 0 con los pies en el suelo, 1 en lo más alto."""
+    lowest = w.floor_y                                   # pies en el suelo
+    highest = w.interior.top + w.player.rect.height      # cabeza tocando el techo
+    if lowest <= highest:
+        return 0.0
+    k = (lowest - w.player.rect.bottom) / (lowest - highest)
+    return min(1.0, max(0.0, k))
+
+
+def height_marker_y(w) -> float:
+    """Posición en pantalla de la bola de altura."""
+    top, bottom = height_marker_range()
+    return bottom - (bottom - top) * height_progress(w)
+
+
 def get_difficulty(db) -> str:
     value = db.get_setting("difficulty", S.DEFAULT_DIFFICULTY)
     return value if value in S.DIFFICULTIES else S.DEFAULT_DIFFICULTY
@@ -558,6 +584,7 @@ class GameScene(Scene):
         surf.blit(field, (0, S.HUD_H), pygame.Rect(0, camera, S.FIELD_W, S.FIELD_H))
         if w.scrolls:
             self._draw_scroll_hints(surf, w)
+            self._draw_height_marker(surf, w)
 
         pygame.draw.rect(surf, (10, 12, 26), (0, 0, S.LOGICAL_W, S.HUD_H))
         hud_y = S.HUD_H // 2
@@ -617,6 +644,19 @@ class GameScene(Scene):
             pygame.draw.rect(tile, S.BRICK_DARK, tile.get_rect(), 1)
             self._brick_tile = tile
         return self._brick_tile
+
+    @staticmethod
+    def _draw_height_marker(surf, w):
+        """Bola roja sobre el borde derecho que indica a qué altura del nivel está el
+        jugador: abajo del todo al empezar en el suelo, arriba del todo en la cima."""
+        x = S.LOGICAL_W - S.BORDER // 2
+        top, bottom = height_marker_range()
+        pygame.draw.line(surf, (32, 36, 72), (x, top), (x, bottom), 4)    # ranura del recorrido
+        y = round(height_marker_y(w))
+        r = _HEIGHT_MARKER_R
+        pygame.draw.circle(surf, (120, 10, 25), (x, y), r + 1)              # contorno
+        pygame.draw.circle(surf, (230, 30, 45), (x, y), r)
+        pygame.draw.circle(surf, (255, 150, 160), (x - 2, y - 2), 2)        # brillo
 
     def _draw_scroll_hints(self, surf, w):
         """Flechitas que indican que el nivel sigue por arriba o por abajo."""
