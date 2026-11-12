@@ -21,6 +21,7 @@ tiene más de 16, el nivel es más alto que la pantalla y se hace scroll vertica
 
 import json
 import logging
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -33,6 +34,17 @@ log = logging.getLogger(__name__)
 LEVELS_DIR = Path(__file__).parent / "resources" / "levels"
 
 
+class LevelError(ValueError):
+    """Nivel mal definido. Además del texto (para el log) lleva una clave de traducción y
+    sus parámetros para poder explicarlo en pantalla en el idioma del jugador."""
+
+    def __init__(self, message, key="level_error.generic", **params):
+        super().__init__(message)
+        self.key = key
+        self.params = params
+        self.params.setdefault("detail", message)
+
+
 @dataclass
 class LevelDef:
     """Definición de un nivel tal y como se guarda en JSON."""
@@ -42,6 +54,9 @@ class LevelDef:
     rows: list
     tutorial: bool = False       # muestra la guía de pasos
     enemies_attack: bool = True  # False: los enemigos no hacen daño
+    # Datos de la carga (no forman parte del nivel ni cuentan al comparar)
+    error: LevelError | None = field(default=None, compare=False)  # fichero dañado
+    file: str = field(default="", compare=False)    # nombre del fichero JSON
 
     def to_dict(self) -> dict:
         return {
@@ -63,19 +78,46 @@ class LevelDef:
                 enemies_attack=bool(data.get("enemies_attack", True)),
             )
         except (KeyError, TypeError, ValueError) as exc:
-            raise ValueError(f"Nivel mal definido: {exc}") from exc
+            raise LevelError(f"Nivel mal definido: {exc}") from exc
         parse_level(level.rows)  # valida el mapa
         return level
 
 
+def _number_from(path, data) -> int | None:
+    """Número del nivel: el del JSON si se puede leer y, si no, el del nombre del fichero."""
+    try:
+        return int(data["number"])
+    except (KeyError, TypeError, ValueError):
+        m = re.search(r"(\d+)", path.stem)
+        return int(m.group(1)) if m else None
+
+
 def load_levels(directory=LEVELS_DIR) -> list[LevelDef]:
-    """Lee todos los ``level_*.json`` de la carpeta, ordenados por número de nivel."""
+    """Lee todos los ``level_*.json`` de la carpeta, ordenados por número de nivel.
+
+    Un fichero mal escrito (JSON roto, una fila con un espacio de más o de menos...) no tumba
+    el juego: el nivel queda en la lista marcado con ``error`` y, al intentar jugarlo, se
+    explica en pantalla qué le pasa (ver LevelErrorScene)."""
     levels = []
     for path in sorted(Path(directory).glob("level_*.json")):
+        data = None
         try:
-            levels.append(LevelDef.from_dict(json.loads(path.read_text(encoding="utf-8"))))
+            data = json.loads(path.read_text(encoding="utf-8"))
+            level = LevelDef.from_dict(data)
         except (OSError, ValueError) as exc:
-            raise ValueError(f"{path.name}: {exc}") from exc
+            if not isinstance(exc, LevelError):
+                exc = LevelError(str(exc), "level_error.file", detail=str(exc))
+            number = _number_from(path, data)
+            log.error("Nivel %s dañado (%s): %s", number, path.name, exc)
+            if number is None:
+                continue
+            rows = data.get("map") if isinstance(data, dict) else None
+            level = LevelDef(number=number, name=f"Nivel {number}",
+                             rows=list(rows) if isinstance(rows, list) else [],
+                             tutorial=bool(data.get("tutorial")) if isinstance(data, dict)
+                             else number == 0, error=exc)
+        level.file = path.name
+        levels.append(level)
     if not levels:
         raise ValueError(f"No hay niveles en {directory}")
     levels.sort(key=lambda lv: lv.number)
@@ -117,14 +159,22 @@ def border_walls(height=S.FIELD_H) -> list:
 
 def parse_level(rows) -> LevelData:
     if len(rows) < S.ROWS:
-        raise ValueError(f"El nivel debe tener al menos {S.ROWS} filas, tiene {len(rows)}")
+        raise LevelError(f"El nivel debe tener al menos {S.ROWS} filas, tiene {len(rows)}",
+                         "level_error.few_rows", rows=len(rows), min=S.ROWS)
     height = S.level_height(len(rows))
     solids, oneway, enemies, spawn, star = border_walls(height), [], [], None, None
     bricks, medkits, coins, bombs, gems = [], [], [], [], []
     boss = None
     for r, row in enumerate(rows):
+        if not isinstance(row, str):
+            raise LevelError(f"Fila {r + 1}: no es un texto", "level_error.row_type", row=r + 1)
         if len(row) != S.COLS:
-            raise ValueError(f"Fila {r}: debe tener {S.COLS} columnas")
+            extra = len(row) - S.COLS
+            key = "level_error.row_long" if extra > 0 else "level_error.row_short"
+            raise LevelError(
+                f"Fila {r + 1}: tiene {len(row)} caracteres y debe tener {S.COLS} "
+                f"({'sobran' if extra > 0 else 'faltan'} {abs(extra)}): {row!r}",
+                key, row=r + 1, length=len(row), cols=S.COLS, count=abs(extra), text=row)
         for c, ch in enumerate(row):
             x, y = S.cell_pos(c, r)
             if ch == "#":
@@ -151,12 +201,14 @@ def parse_level(rows) -> LevelData:
                 gems.append((x, y))
             elif ch == "J":
                 if boss is not None:
-                    raise ValueError(f"Fila {r}, columna {c}: solo puede haber un jefe 'J'")
+                    raise LevelError(f"Fila {r + 1}, columna {c + 1}: solo puede haber un jefe 'J'",
+                                     "level_error.two_bosses", row=r + 1, col=c + 1)
                 boss = (x, y)
             elif ch != " ":
-                raise ValueError(f"Fila {r}, columna {c}: carácter desconocido {ch!r}")
+                raise LevelError(f"Fila {r + 1}, columna {c + 1}: carácter desconocido {ch!r}",
+                                 "level_error.unknown_char", row=r + 1, col=c + 1, char=ch)
     if spawn is None:
-        raise ValueError("El nivel no tiene inicio de jugador 'P'")
+        raise LevelError("El nivel no tiene inicio de jugador 'P'", "level_error.no_player")
     return LevelData(solids, oneway, spawn, enemies, star, bricks, height, len(rows), medkits,
                      coins, bombs, gems, boss)
 

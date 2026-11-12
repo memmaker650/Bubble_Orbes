@@ -60,8 +60,9 @@ def test_export_and_reload_roundtrip(tmp_path):
 def test_invalid_map_is_rejected(tmp_path):
     bad = LevelDef(1, "Malo", ["#########"] * S.ROWS).to_dict()
     (tmp_path / "level_01.json").write_text(json.dumps(bad))
-    with pytest.raises(ValueError, match="level_01.json"):
-        load_levels(tmp_path)
+    (lv,) = load_levels(tmp_path)              # no tumba la carga: queda marcado
+    assert lv.number == 1 and lv.file == "level_01.json"
+    assert isinstance(lv.error, ValueError) and lv.error.key == "level_error.no_player"
     with pytest.raises(ValueError):
         LevelGenerator().build_map(r3="@@@@@@@@@")
 

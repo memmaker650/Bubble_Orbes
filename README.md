@@ -121,6 +121,11 @@ Reglas del mapa:
 - El jugador puede empezar **abajo** (la estrella arriba), **arriba del todo** (la estrella abajo
   del todo) o **a mitad** del nivel (la estrella arriba o abajo). En los niveles 5 a 29 el
   generador rota esas cuatro disposiciones; el 30 siempre se sube (el jefe espera arriba).
+- Si un JSON está mal (una fila con un espacio **de más o de menos**, un carácter desconocido,
+  JSON roto...) el juego **no se cierra**: el nivel queda marcado como dañado (se anota en el log)
+  y, al intentar jugarlo, una pantalla dice qué fichero, qué fila (contando desde 1) y qué le
+  pasa, con la fila dibujada mostrando los espacios como `·`. Los demás niveles se juegan con
+  normalidad y, si era la partida guardada, se conserva para cuando se arregle el fichero.
 
 ### Niveles, tamaños y enemigos
 

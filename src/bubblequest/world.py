@@ -79,6 +79,8 @@ class World:
 
     def load_level(self):
         self.level = levels.LEVELS[self.level_index]
+        if self.level.error is not None:      # fichero dañado: se avisa en pantalla
+            raise self.level.error
         data = parse_level(self.level.rows)
         self.solids = data.solids
         self.bricks = data.bricks

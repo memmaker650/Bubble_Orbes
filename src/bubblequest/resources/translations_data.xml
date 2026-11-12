@@ -62,6 +62,18 @@
     <text key="difficulty_short.hard">D</text>
     <text key="win.heart">¡+1 corazón!</text>
     <text key="play.level">Nivel {level}</text>
+    <text key="level_error.title">Nivel {level} dañado</text>
+    <text key="level_error.file_name">Fichero {file}</text>
+    <text key="level_error.row_long">La fila {row} del mapa tiene {length} caracteres y debe tener {cols}: sobran {count}.</text>
+    <text key="level_error.row_short">La fila {row} del mapa tiene {length} caracteres y debe tener {cols}: faltan {count}.</text>
+    <text key="level_error.row_type">La fila {row} del mapa no es un texto.</text>
+    <text key="level_error.few_rows">El mapa tiene {rows} filas y necesita al menos {min}.</text>
+    <text key="level_error.two_bosses">Fila {row}, columna {col}: solo puede haber un jefe J.</text>
+    <text key="level_error.unknown_char">Fila {row}, columna {col}: carácter desconocido «{char}».</text>
+    <text key="level_error.no_player">El mapa no tiene inicio del jugador (P).</text>
+    <text key="level_error.file">El fichero no se puede leer: {detail}</text>
+    <text key="level_error.generic">{detail}</text>
+    <text key="level_error.hint">Corrige el fichero y vuelve a abrir el juego.</text>
   </language>
   <language code="en" name="English" flag="uk">
     <text key="menu.subtitle">Trap enemies in bubbles and pop them</text>
@@ -119,6 +131,18 @@
     <text key="difficulty_short.hard">H</text>
     <text key="win.heart">+1 heart!</text>
     <text key="play.level">Level {level}</text>
+    <text key="level_error.title">Level {level} is damaged</text>
+    <text key="level_error.file_name">File {file}</text>
+    <text key="level_error.row_long">Map row {row} has {length} characters and must have {cols}: {count} too many.</text>
+    <text key="level_error.row_short">Map row {row} has {length} characters and must have {cols}: {count} missing.</text>
+    <text key="level_error.row_type">Map row {row} is not text.</text>
+    <text key="level_error.few_rows">The map has {rows} rows and needs at least {min}.</text>
+    <text key="level_error.two_bosses">Row {row}, column {col}: there can only be one boss J.</text>
+    <text key="level_error.unknown_char">Row {row}, column {col}: unknown character “{char}”.</text>
+    <text key="level_error.no_player">The map has no player start (P).</text>
+    <text key="level_error.file">The file cannot be read: {detail}</text>
+    <text key="level_error.generic">{detail}</text>
+    <text key="level_error.hint">Fix the file and open the game again.</text>
   </language>
   <language code="fr" name="Français" flag="fr">
     <text key="menu.subtitle">Piégez les ennemis dans des bulles</text>
@@ -176,5 +200,17 @@
     <text key="difficulty_short.hard">D</text>
     <text key="win.heart">+1 cœur !</text>
     <text key="play.level">Niveau {level}</text>
+    <text key="level_error.title">Niveau {level} endommagé</text>
+    <text key="level_error.file_name">Fichier {file}</text>
+    <text key="level_error.row_long">La ligne {row} de la carte a {length} caractères au lieu de {cols} : {count} de trop.</text>
+    <text key="level_error.row_short">La ligne {row} de la carte a {length} caractères au lieu de {cols} : il en manque {count}.</text>
+    <text key="level_error.row_type">La ligne {row} de la carte n’est pas un texte.</text>
+    <text key="level_error.few_rows">La carte a {rows} lignes et il en faut au moins {min}.</text>
+    <text key="level_error.two_bosses">Ligne {row}, colonne {col} : il ne peut y avoir qu’un seul boss J.</text>
+    <text key="level_error.unknown_char">Ligne {row}, colonne {col} : caractère inconnu « {char} ».</text>
+    <text key="level_error.no_player">La carte n’a pas de départ du joueur (P).</text>
+    <text key="level_error.file">Le fichier ne peut pas être lu : {detail}</text>
+    <text key="level_error.generic">{detail}</text>
+    <text key="level_error.hint">Corrigez le fichier et rouvrez le jeu.</text>
   </language>
 </translations>

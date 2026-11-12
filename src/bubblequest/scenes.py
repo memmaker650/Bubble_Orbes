@@ -104,6 +104,11 @@ class MenuScene(Scene):
         data = self.app.db.load_game()
         try:
             world = savegame.restore(data) if data else None
+        except levels.LevelError as exc:
+            # El nivel guardado está dañado: se avisa y se conserva la partida para cuando
+            # se arregle el fichero
+            self.app.change_scene(LevelErrorScene(self.app, exc, data.get("level_number")))
+            return
         except ValueError:
             log.exception("No se pudo retomar la partida guardada; se descarta")
             world = None
@@ -358,8 +363,8 @@ class PlayScene(Scene):
 
     def _start(self, level_index):
         self.app.db.clear_game()  # empezar de nuevo descarta la partida guardada
-        self.app.change_scene(GameScene(self.app, level_index=level_index,
-                                        difficulty=get_difficulty(self.app.db)))
+        self.app.change_scene(game_scene(self.app, level_index=level_index,
+                                         difficulty=get_difficulty(self.app.db)))
 
     def _activate(self, name):
         if name == "start":
@@ -442,6 +447,66 @@ class ScoresScene(Scene):
                   center=(S.LOGICAL_W // 2, S.LOGICAL_H - 60))
 
 
+def game_scene(app, level_index=0, *args, **kwargs):
+    """GameScene del nivel o, si su fichero está dañado, la pantalla que lo explica (así un
+    error al editar un JSON no cierra el juego)."""
+    try:
+        return GameScene(app, level_index, *args, **kwargs)
+    except levels.LevelError as exc:
+        return LevelErrorScene(app, exc, levels.LEVELS[level_index].number)
+
+
+def _visible_spaces(text) -> str:
+    """Fila del mapa con los espacios a la vista y sus límites marcados."""
+    return "|" + text.replace(" ", "·") + "|"
+
+
+class LevelErrorScene(Scene):
+    """Aviso de nivel dañado: qué fichero, qué fila y qué le pasa. Al tocar se vuelve al menú."""
+
+    def __init__(self, app, error, number=None):
+        super().__init__(app)
+        self.error = error
+        self.number = number
+        self.file = next((lv.file for lv in levels.LEVELS
+                          if lv.number == number and lv.file), "")
+        self.title = pygame.font.Font(None, 42)
+        self.font = pygame.font.Font(None, 28)
+        self.small = pygame.font.Font(None, 22)
+        self.t = 0.0
+
+    def handle_event(self, event):
+        if is_confirm(event, self.app.display) or (
+                event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
+            self.app.change_scene(MenuScene(self.app))
+
+    def update(self, dt):
+        self.t += dt
+
+    def lines(self) -> list:
+        """Textos del aviso (también para los tests)."""
+        e = self.error
+        key = getattr(e, "key", "level_error.generic")
+        params = dict(getattr(e, "params", {}) or {"detail": str(e)})
+        rows = [(self.title, t("level_error.title", level=self.number if self.number is not None
+                                else "?"), S.STAR_YELLOW)]
+        if self.file:
+            rows.append((self.small, t("level_error.file_name", file=self.file), S.PLATFORM))
+        rows.append((self.font, t(key, **params), S.WHITE))
+        if "text" in params:
+            rows.append((self.font, _visible_spaces(params["text"]), S.BUBBLE))
+        rows.append((self.small, t("level_error.hint"), S.PLATFORM))
+        return rows
+
+    def draw(self, surf):
+        surf.fill(S.BG)
+        draw_message_box(surf, self.lines(), (S.LOGICAL_W // 2, S.LOGICAL_H // 2 - 40),
+                         width=340, accent=(230, 30, 45))
+        if int(self.t * 2) % 2 == 0:
+            draw_text(surf, self.small, t("scores.back"), S.WHITE,
+                      center=(S.LOGICAL_W // 2, S.LOGICAL_H - 60))
+
+
 class GameScene(Scene):
     def __init__(self, app, level_index=0, lives=None, score=0, world=None,
                  difficulty=S.DEFAULT_DIFFICULTY):
@@ -516,10 +581,10 @@ class GameScene(Scene):
         w = self.world
         if w.state == "won" and not w.is_last_level:
             if w.tutorial:  # el tutorial es práctica: se empieza de cero
-                scene = GameScene(self.app, w.level_index + 1, difficulty=w.difficulty)
+                scene = game_scene(self.app, w.level_index + 1, difficulty=w.difficulty)
             else:
-                scene = GameScene(self.app, w.level_index + 1, w.lives, w.score,
-                                  difficulty=w.difficulty)
+                scene = game_scene(self.app, w.level_index + 1, w.lives, w.score,
+                                   difficulty=w.difficulty)
             self.app.change_scene(scene)
         else:
             self.app.change_scene(MenuScene(self.app))
