@@ -154,6 +154,23 @@ def place_coins(rows, number) -> list[str]:
     return ["".join(row) for row in grid]
 
 
+def place_boss(rows, number) -> list[str]:
+    """En el nivel del jefe (S.BOSS_LEVEL) pone la J sobre la plataforma más alta, en el
+    centro, y deja libre su arena (las filas de encima, salvo la estrella). Si ya tiene jefe o
+    no es su nivel, no toca nada."""
+    if number != S.BOSS_LEVEL or any("J" in row for row in rows):
+        return list(rows)
+    grid = [list(row) for row in rows]
+    # Primera plataforma central con sitio encima para el jefe (mide unas 3 filas)
+    top = next(r for r in range(4, len(grid)) if grid[r][4] == "=")
+    for r in range(top - 3, top):
+        for c in range(9):
+            if grid[r][c] not in "S= ":
+                grid[r][c] = " "
+    grid[top - 1][4] = "J"
+    return ["".join(row) for row in grid]
+
+
 # --- Dónde empieza el jugador y dónde está la estrella ---
 # "up": abajo -> estrella arriba     "down": arriba del todo -> estrella abajo del todo
 # "middle_up" / "middle_down": a mitad del nivel -> estrella arriba / abajo
@@ -164,7 +181,7 @@ SAFE_ROWS = 4                  # sin enemigos a menos de estas filas del inicio 
 def layout_for(number) -> str:
     """Disposición de los niveles generados: rotan las cuatro (5 sube, 6 baja, 7 y 8 desde
     la mitad...). Los niveles 1-4 empiezan siempre abajo."""
-    if number < FIRST_GENERATED:
+    if number < FIRST_GENERATED or number == S.BOSS_LEVEL:   # al jefe final se sube
         return "up"
     return LAYOUTS[(number - FIRST_GENERATED) % len(LAYOUTS)]
 
@@ -404,6 +421,7 @@ class LevelGenerator:
         result = set_layout(result, layout_for(number), number)       # inicio y estrella
         result = assign_enemy_kinds(result, number)                   # rojos, azules, naranjas
         result = place_bombs(result, number)                          # bombas (nivel 10+)
+        result = place_boss(result, number)                           # jefe final (nivel 30)
         parse_level(result)
         return result
 

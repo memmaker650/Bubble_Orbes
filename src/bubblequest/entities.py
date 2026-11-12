@@ -542,6 +542,252 @@ class KnifeEnemy(Enemy):
 ENEMY_TYPES = {"E": TongueEnemy, "A": LaserEnemy, "N": KnifeEnemy}
 
 
+class Boss(Body):
+    """Jefe final: un muñeco enorme de anillos hinchados (BOSS_W x BOSS_H, el triple que el
+    jugador). No se le atrapa en burbujas: cada burbuja le quita 1 de vida y cada bomba
+    BOSS_BOMB_DAMAGE.
+
+    Estados (``state``):
+      walk -> pasea por su plataforma mirando al jugador
+      crouch -> se agacha (aviso del manotazo)      slap -> barre el suelo con la(s) mano(s)
+      rise -> se levanta                            prep -> coge impulso para saltar
+      air -> salto vertical                         land -> aterriza (el suelo tiembla)
+      dying -> derrotado: tiembla y se deshincha (World lo termina tras BOSS_DEATH_TIME)
+    """
+
+    kind = "boss"
+
+    def __init__(self, x, y, hp, rng):
+        """``(x, y)``: casilla J, donde apoya los pies (centrado en ella)."""
+        super().__init__(x + S.TILE // 2 - S.BOSS_W // 2, y + S.TILE - S.BOSS_H,
+                         S.BOSS_W, S.BOSS_H)
+        self.spawn = self.rect.topleft
+        self.rng = rng
+        self.hp = self.max_hp = hp
+        self.alive = True
+        self.facing = -1
+        self.state = "walk"
+        self.state_t = 0.0
+        self.side = 1             # lado del manotazo: -1 izquierda, 1 derecha, 0 los dos
+        self.cooldown = S.BOSS_FIRST_COOLDOWN
+        self.jump_cd = rng.uniform(*S.BOSS_JUMP_EVERY)
+        self.hurt_t = 0.0
+        self.walk_dist = 0.0      # distancia andada (para mover las piernas)
+        self.landed_now = False   # ha aterrizado en este fotograma (temblor del suelo)
+        self.home = None          # (izquierda, derecha) de la plataforma donde pasea
+
+    # --- vida ---
+    @property
+    def dying(self) -> bool:
+        return self.state == "dying"
+
+    @property
+    def angry(self) -> bool:
+        """A menos de la mitad de vida: ojos rojos y manotazos a los dos lados."""
+        return self.hp <= self.max_hp / 2
+
+    def hit(self, damage) -> bool:
+        """Recibe un golpe. Devuelve True si con él queda derrotado."""
+        if not self.alive or self.dying:
+            return False
+        self.hp = max(0, self.hp - damage)
+        self.hurt_t = S.BOSS_HURT_FLASH
+        if self.hp <= 0:
+            self._set("dying")
+            self.vx = 0.0
+            return True
+        return False
+
+    def set_home(self, solids, oneway):
+        """Plataforma bajo sus pies: pasea por ella sin caerse."""
+        feet = Rect(self.rect.centerx - 1, self.rect.bottom, 2, 4)
+        below = [p for p in (*oneway, *solids) if p.colliderect(feet)]
+        if not below:
+            return
+        y = below[0].top
+        row = [p for p in (*oneway, *solids) if p.top == y]
+        left = right = below[0]
+        changed = True
+        while changed:                       # une los trozos contiguos de la plataforma
+            changed = False
+            for p in row:
+                if p.right == left.left:
+                    left, changed = p, True
+                if p.left == right.right:
+                    right, changed = p, True
+        self.home = (left.left, right.right)
+
+    def _set(self, state):
+        self.state = state
+        self.state_t = 0.0
+
+    # --- animación (0..1) ---
+    @property
+    def crouch_k(self) -> float:
+        """Cuánto está agachado/aplastado."""
+        t = self.state_t
+        if self.state == "crouch":
+            k = min(1.0, t / S.BOSS_CROUCH_TIME)
+            return 1 - (1 - k) ** 2
+        if self.state == "slap":
+            return 1.0
+        if self.state == "rise":
+            return max(0.0, 1 - t / S.BOSS_RISE_TIME)
+        if self.state == "prep":
+            return 0.75 * min(1.0, t / S.BOSS_JUMP_PREP)
+        if self.state == "land":
+            k = t / S.BOSS_LAND_TIME
+            return 0.85 * math.sin(math.pi * min(1.0, k * 0.5 + 0.5))   # golpe y recupera
+        if self.state == "dying":
+            return 0.35 * min(1.0, t / S.BOSS_DEATH_TIME)
+        return 0.0
+
+    @property
+    def arm_ext(self) -> float:
+        """Cuánto ha sacado la mano del manotazo (0 recogida, 1 estirada del todo)."""
+        if self.state != "slap":
+            return 0.0
+        t = self.state_t
+        if t < S.BOSS_SLAP_OUT:
+            k = t / S.BOSS_SLAP_OUT
+            return 1 - (1 - k) ** 3
+        if t < S.BOSS_SLAP_OUT + S.BOSS_SLAP_HOLD:
+            return 1.0
+        return max(0.0, 1 - (t - S.BOSS_SLAP_OUT - S.BOSS_SLAP_HOLD) / S.BOSS_SLAP_IN)
+
+    @property
+    def stretch_k(self) -> float:
+        """Estirado en el aire (subiendo), para el salto."""
+        if self.state != "air":
+            return 0.0
+        return max(0.0, min(1.0, -self.vy / 300.0))
+
+    @property
+    def hurt_box(self) -> Rect:
+        """Zona del cuerpo que recibe burbujas y que hace daño al tocarla (baja al agacharse)."""
+        drop = round(self.crouch_k * S.BOSS_H * 0.3)
+        return Rect(self.rect.x + 6, self.rect.y + drop, self.rect.width - 12,
+                    self.rect.height - drop)
+
+    def slap_sides(self) -> tuple:
+        return (-1, 1) if self.side == 0 else (self.side,)
+
+    def attack_rects(self) -> list:
+        """Manos que hacen daño ahora mismo (barren el suelo)."""
+        ext = self.arm_ext
+        if ext < 0.25:
+            return []
+        reach = round(S.BOSS_REACH * ext)
+        rects = []
+        for side in self.slap_sides():
+            x = self.rect.right - 8 if side > 0 else self.rect.left + 8 - reach
+            rects.append(Rect(x, self.rect.bottom - 26, reach, 26))
+        return rects
+
+    # --- comportamiento ---
+    def _sees(self, target) -> bool:
+        """El jugador está en su piso (entre su cabeza y sus pies, con algo de margen)."""
+        return target.bottom > self.rect.top - 8 and target.top < self.rect.bottom + 4
+
+    def update(self, dt, solids, oneway, target=None):
+        self.landed_now = False
+        self.hurt_t = max(0.0, self.hurt_t - dt)
+        self.state_t += dt
+        st = self.state
+        if st == "dying":
+            self.vx = 0.0
+            self.physics(dt, solids, oneway)
+            return
+        self.cooldown = max(0.0, self.cooldown - dt)
+        if st == "walk":
+            self._walk(dt, target)
+        elif st == "crouch":
+            self.vx = 0.0
+            if self.state_t >= S.BOSS_CROUCH_TIME:
+                self._set("slap")
+        elif st == "slap":
+            if self.state_t >= S.BOSS_SLAP_OUT + S.BOSS_SLAP_HOLD + S.BOSS_SLAP_IN:
+                self._set("rise")
+        elif st == "rise":
+            if self.state_t >= S.BOSS_RISE_TIME:
+                self._set("walk")
+                self.cooldown = S.BOSS_SLAP_COOLDOWN
+        elif st == "prep":
+            self.vx = 0.0
+            if self.state_t >= S.BOSS_JUMP_PREP:
+                self.vy = -math.sqrt(2 * S.GRAVITY * S.BOSS_JUMP_H)
+                self.on_ground = False
+                self._set("air")
+        elif st == "air":
+            self.vx = 0.0
+        elif st == "land":
+            if self.state_t >= S.BOSS_LAND_TIME:
+                self._set("walk")
+                self.jump_cd = self.rng.uniform(*S.BOSS_JUMP_EVERY)
+                self.cooldown = max(self.cooldown, 0.4)
+        was_air = self.state == "air"
+        self.physics(dt, solids, oneway)
+        if was_air and self.on_ground and self.state_t > 0.05:
+            self._set("land")
+            self.landed_now = True
+
+    def _walk(self, dt, target):
+        seen = target is not None and self._sees(target)
+        if seen:
+            dx = target.centerx - self.rect.centerx
+            if abs(dx) > 6:
+                self.facing = 1 if dx > 0 else -1
+            gap = abs(dx) - (self.rect.width + target.width) / 2
+            if self.cooldown <= 0 and self.on_ground and gap <= S.BOSS_SLAP_TRIGGER:
+                both = self.angry and self.rng.random() < S.BOSS_BOTH_CHANCE
+                self.side = 0 if both else self.facing
+                self.vx = 0.0
+                self._set("crouch")
+                return
+        self.jump_cd -= dt
+        above = (target is not None and target.bottom < self.rect.top
+                 and abs(target.centerx - self.rect.centerx) < self.rect.width)
+        if self.on_ground and self.cooldown <= 0 and (self.jump_cd <= 0 or above):
+            self.vx = 0.0
+            self._set("prep")
+            return
+        if self.home is not None:            # no se cae de su plataforma
+            left, right = self.home
+            if self.rect.left <= left + 2 and self.facing < 0:
+                self.facing = 1
+            elif self.rect.right >= right - 2 and self.facing > 0:
+                self.facing = -1
+        # Cerca del jugador se planta (para pegarle); si no, se acerca despacio
+        near = seen and abs(target.centerx - self.rect.centerx) < self.rect.width * 0.6
+        self.vx = 0.0 if near else self.facing * S.BOSS_SPEED
+        if self.home is not None:
+            left, right = self.home
+            nx = self.fx + self.vx * dt
+            if nx < left or nx + self.rect.width > right:
+                self.vx = 0.0
+        self.walk_dist += abs(self.vx * dt)
+
+
+class LootCoin(Body):
+    """Moneda que suelta el jefe al morir: sale disparada, cae y se queda en el suelo."""
+
+    def __init__(self, cx, cy, vx, vy):
+        s = S.COIN_SIZE
+        super().__init__(cx - s // 2, cy - s // 2, s, s)
+        self.vx, self.vy = vx, vy
+        self.taken = False
+        self.cell = None
+
+    def update(self, dt, solids, oneway):
+        if self.on_ground:
+            return
+        hit_wall = self.physics(dt, solids, oneway)
+        if hit_wall:
+            self.vx = -self.vx * 0.5
+        if self.on_ground:
+            self.vx = 0.0
+
+
 class Bubble:
     def __init__(self, cx, cy, direction):
         s = S.BUBBLE_SIZE

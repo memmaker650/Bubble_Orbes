@@ -8,6 +8,7 @@ import sys
 import pygame
 
 from . import effects
+from .boss_art import draw_boss, draw_boss_bar
 from . import settings as S
 from . import translations
 from . import savegame
@@ -427,6 +428,7 @@ class GameScene(Scene):
         self._bomb_images = {}        # {encendida: imagen} (ver _bomb_image)
         self.controls = Controls()
         self.hud = pygame.font.Font(None, 26)
+        self.hud_small = pygame.font.Font(None, 20)
         self.big = pygame.font.Font(None, 54)
         self.font = pygame.font.Font(None, 30)
         self.title = pygame.font.Font(None, 42)
@@ -529,6 +531,10 @@ class GameScene(Scene):
         for e in w.enemies:
             if e.alive:
                 self._draw_enemy(field, e)
+        if w.boss is not None and w.boss.alive:
+            draw_boss(field, w.boss, self.t)
+        for c in w.loot:                                # monedas que suelta el jefe
+            self._draw_coin(field, c)
         for b in w.bubbles:
             self._draw_bubble(field, b)
         for x, y, age in w.explosions:
@@ -571,6 +577,11 @@ class GameScene(Scene):
         level_rect = draw_text(surf, self.hud, level, S.WHITE, center=(level_x, hud_y))
         if not w.tutorial:
             self._draw_hud_gems(surf, w, level_rect.right + _HUD_GEMS_GAP, gems_right, hud_y)
+
+        boss = w.boss
+        if (boss is not None and boss.alive and boss.rect.bottom > w.camera_y
+                and boss.rect.top < w.camera_y + S.FIELD_H):     # jefe en pantalla: su vida
+            draw_boss_bar(surf, boss, self.hud_small, t("boss.name"), S.HUD_H + 10)
 
         for g in w.ghosts:  # suben por encima del marcador hasta salir de la pantalla
             self._draw_ghost(surf, g)

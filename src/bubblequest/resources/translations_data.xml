@@ -19,6 +19,8 @@
     <text key="hud.level">Nivel {level}</text>
     <text key="star.kill_all">Mata a todos los enemigos para terminar el nivel</text>
     <text key="star.gem_needed">Coge la gema para terminar el nivel</text>
+    <text key="boss.name">Jefe</text>
+    <text key="boss.defeated">¡Has derrotado al jefe final!</text>
     <text key="gem.taken.white">¡Gema blanca conseguida!</text>
     <text key="gem.taken.emerald">¡Esmeralda conseguida!</text>
     <text key="gem.taken.yellow">¡Gema amarilla conseguida!</text>
@@ -74,6 +76,8 @@
     <text key="hud.level">Level {level}</text>
     <text key="star.kill_all">Defeat all the enemies to finish the level</text>
     <text key="star.gem_needed">Grab the gem to finish the level</text>
+    <text key="boss.name">Boss</text>
+    <text key="boss.defeated">You defeated the final boss!</text>
     <text key="gem.taken.white">White gem collected!</text>
     <text key="gem.taken.emerald">Emerald collected!</text>
     <text key="gem.taken.yellow">Yellow gem collected!</text>
@@ -129,6 +133,8 @@
     <text key="hud.level">Niveau {level}</text>
     <text key="star.kill_all">Éliminez tous les ennemis pour terminer le niveau</text>
     <text key="star.gem_needed">Prenez la gemme pour terminer le niveau</text>
+    <text key="boss.name">Boss</text>
+    <text key="boss.defeated">Vous avez vaincu le boss final !</text>
     <text key="gem.taken.white">Gemme blanche obtenue !</text>
     <text key="gem.taken.emerald">Émeraude obtenue !</text>
     <text key="gem.taken.yellow">Gemme jaune obtenue !</text>

@@ -22,23 +22,24 @@ tiempo, el enemigo se libera enfadado.
 
 ## Puntuación
 
-| Qué | Puntos |
-|-----|--------|
-| Enemigo naranja (cuchillo) | 100 |
-| Enemigo rojo (lengua) | 200 |
-| Enemigo azul (láser) | 300 |
-| Moneda de oro | 100 |
-| Burbuja vacía reventada | 10 |
-| Terminar un nivel del 1 al 5 | 200 |
-| Terminar un nivel del 6 al 10 | 300 |
-| Terminar un nivel del 11 al 15 | 400 |
-| Terminar un nivel del 16 al 20 | 500 |
-| Terminar un nivel del 21 al 27 | 600 |
-| Terminar el nivel 28 o 29 | 700 |
-| Terminar el nivel 30 | 1000 |
+| Qué 			 			     |Puntos|
+|--------------------------------|------|
+| Enemigo naranja (cuchillo)     | 100  |
+| Enemigo rojo (lengua)          | 200  |
+| Enemigo azul (láser)           | 300  |
+| Moneda de oro 			     | 100  |
+| Burbuja vacía reventada 	     | 10   |
+| Jefe final (nivel 30)          | 5000 |
+| Terminar un nivel del 1 al 5   | 200  |
+| Terminar un nivel del 6 al 10  | 300  |
+| Terminar un nivel del 11 al 15 | 400  |
+| Terminar un nivel del 16 al 20 | 500  |
+| Terminar un nivel del 21 al 27 | 600  |
+| Terminar el nivel 28 o 29      | 700  |
+| Terminar el nivel 30           |1000  |
 
 Los enemigos dan sus puntos tanto al reventar su burbuja como al eliminarlos con una bomba. Los
-valores están en `settings.py` (`POINTS_ENEMY`, `LEVEL_BONUS`, `POINTS_COIN`, `POINTS_BUBBLE`).
+valores están en `settings.py` (`POINTS_ENEMY`, `LEVEL_BONUS`, `POINTS_COIN`, `POINTS_BUBBLE`, `BOSS_POINTS`).
 
 ## Estructura
 
@@ -105,6 +106,7 @@ fichero. `python -m bubblequest.level_generator` crea los que falten **sin sobre
 | `C`      | Moneda de oro: +100 puntos.                                                         |
 | `B`      | Bomba: se enciende al golpearla con una burbuja o pulsando la acción encima; a los 3 s explota y elimina a los enemigos a menos de ~140 px (3,5 casillas). |
 | `G`      | Gema: obligatoria para terminar el nivel. Su color depende del nivel (10 rubí, 15 esmeralda, 20 amarilla, 25 aguamarina, 30 blanca). |
+| `J`      | Jefe final (solo uno): apoya los pies en esta casilla y ocupa unas 2 x 3 casillas por encima. Está en el nivel 30. |
 
 Reglas del mapa:
 
@@ -115,8 +117,8 @@ Reglas del mapa:
 - Un salto completo (doble pulsación) sube unas **3 filas**: las plataformas deben estar como mucho
   a 3 filas unas de otras para poder subir.
 - El jugador puede empezar **abajo** (la estrella arriba), **arriba del todo** (la estrella abajo
-  del todo) o **a mitad** del nivel (la estrella arriba o abajo). En los niveles 5 a 30 el
-  generador rota esas cuatro disposiciones.
+  del todo) o **a mitad** del nivel (la estrella arriba o abajo). En los niveles 5 a 29 el
+  generador rota esas cuatro disposiciones; el 30 siempre se sube (el jefe espera arriba).
 
 ### Niveles, tamaños y enemigos
 
@@ -199,6 +201,30 @@ niveles, y necesita las cinco para terminar el nivel 30:
 - En el marcador, entre el nivel y las vidas, se ven las cinco: rellenas las conseguidas y
   solo la silueta de las que faltan. Al cogerla aparece un aviso con su nombre.
 - Si se guarda la partida a mitad de nivel, la gema ya cogida no vuelve a aparecer.
+
+### Jefe final (`J`)
+
+En lo alto del **nivel 30** espera el jefe final: un muñeco enorme hecho de anillos hinchados,
+**el triple de grande que el jugador** (84 x 96 px). El nivel se recorre de abajo arriba y la
+estrella está justo encima de él, así que hay que derrotarlo para terminar el juego.
+
+- **Daño:** no se le puede atrapar en una burbuja. Cada burbuja que le da le quita **1** de vida
+  y cada bomba que le pilla, **8** (hay una bomba en su plataforma). Parpadea en rojo al recibir
+  un golpe. Su vida depende de la dificultad: **18** (fácil), **26** (normal), **34** (difícil),
+  y se ve en una barra bajo el marcador mientras está en pantalla.
+- **Manotazo:** cuando el jugador se acerca en su mismo piso, se **agacha** (coge impulso con el
+  brazo hacia atrás) y **barre el suelo con la mano** hacia ese lado, izquierdo o derecho. Hay
+  que saltar para esquivarlo; si da, quita una vida. Con menos de la mitad de vida se enfada
+  (ojos rojos) y a veces barre **con las dos manos** a la vez.
+- **Salto vertical:** cada pocos segundos (y si el jugador se pone encima de él) coge impulso,
+  salta en vertical con los brazos en alto y, al aterrizar, **el suelo tiembla**: hiere al
+  jugador si está de pie cerca en el mismo piso. Saltando en ese momento se libra.
+- Tocarlo quita medio corazón, como a cualquier enemigo. Pasea por su plataforma sin caerse.
+- **Derrota:** tiembla, parpadea y se deshincha, explota y da **5.000 puntos** más una lluvia de
+  **20 monedas** (+100 cada una) que caen por la zona.
+- Si se guarda la partida, se conservan su vida y su postura, si ya ha caído y las monedas que
+  quedan sin coger.
+- Ajustes en `settings.py` (`BOSS_*`). El dibujo y las animaciones están en `boss_art.py`.
 
 ## Desarrollo
 

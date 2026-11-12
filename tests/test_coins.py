@@ -188,6 +188,8 @@ def test_completing_level_gives_its_bonus():
         for e in w.enemies:
             e.alive = False
         w.gems = []                     # la del 30 es obligatoria (ver test_gems.py)
+        if w.boss is not None:          # y el jefe final (ver test_boss.py)
+            w.boss.alive = False
         w.player.place(*w.star.rect.topleft)
         step(w, 1)
         assert w.state == "won" and w.level_points == bonus, number

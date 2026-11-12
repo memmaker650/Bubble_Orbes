@@ -24,6 +24,8 @@ def _cleared(number):
     w = World(index_of(number), seed=1)
     for e in w.enemies:
         e.alive = False
+    if w.boss is not None:      # el jefe final del 30 (ver test_boss.py)
+        w.boss.alive = False
     w.player.invuln = 999
     return w
 

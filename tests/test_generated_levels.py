@@ -163,6 +163,8 @@ def test_generated_level_can_be_completed(number):
     for e in w.enemies:
         e.alive = False
     w.gems = []          # aquí se comprueba el camino hasta la estrella (gemas: test_gems.py)
+    if w.boss is not None:                      # jefe final: test_boss.py
+        w.boss.alive = False
     w.player.invuln = 999
     rows = LEVELS[index_of(number)].rows
     star_row = next(r for r, row in enumerate(rows) if "S" in row)

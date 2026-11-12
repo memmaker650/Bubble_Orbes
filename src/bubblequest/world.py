@@ -7,7 +7,8 @@ import random
 from pygame import Rect
 
 from . import settings as S
-from .entities import ENEMY_TYPES, Bomb, Bubble, Coin, Gem, Ghost, Medkit, Player, Star
+from .entities import (ENEMY_TYPES, Bomb, Boss, Bubble, Coin, Gem, Ghost, LootCoin, Medkit,
+                       Player, Star)
 from . import levels
 from .levels import parse_level
 
@@ -104,6 +105,12 @@ class World:
         self.coins = [Coin(x, y) for x, y in data.coins]
         self.bombs = [Bomb(x, y) for x, y in data.bombs]
         self.gems = [Gem(x, y, self.gem_kind) for x, y in data.gems]
+        self.boss = None
+        if data.boss is not None:
+            self.boss = Boss(*data.boss, S.BOSS_HP.get(self.difficulty, S.BOSS_HP["normal"]),
+                             self.rng)
+            self.boss.set_home(self.solids, self.oneway)
+        self.loot: list[LootCoin] = []   # monedas que suelta el jefe al morir
         self.explosions: list = []   # animaciones de explosión: [x, y, tiempo]
         self.popups: list = []       # textos flotantes ("+100"): [x, y, tiempo, texto, color]
         self.camera_y = 0.0
@@ -162,7 +169,9 @@ class World:
 
     @property
     def enemies_left(self) -> int:
-        return sum(1 for e in self.enemies if e.alive)
+        """Enemigos vivos, contando al jefe (también mientras cae derrotado)."""
+        boss = 1 if self.boss is not None and self.boss.alive else 0
+        return sum(1 for e in self.enemies if e.alive) + boss
 
     def show_message(self, key):
         self.message = key
@@ -210,6 +219,9 @@ class World:
         for e in self.enemies:
             if e.alive:
                 e.update(dt, self.solids, self.oneway, target, predicted)
+        self._update_boss(dt, target)
+        for c in self.loot:
+            c.update(dt, self.solids, self.oneway)
         self._update_bubbles(dt)
         self._update_bombs(dt)
         self._rescue_escaped()
@@ -243,6 +255,15 @@ class World:
                 e.place(*e.spawn)
                 e.vx = e.vy = 0.0
                 e.attack = None
+        boss = self.boss
+        if boss is not None and boss.alive and not self.interior.colliderect(boss.rect):
+            log.warning("Jefe fuera del campo en %s; vuelve a su inicio", boss.rect.topleft)
+            boss.place(*boss.spawn)
+            boss.vx = boss.vy = 0.0
+        for c in self.loot:
+            if not self.interior.contains(c.rect):
+                c.rect.clamp_ip(self.interior)
+                c.fx, c.fy = float(c.rect.x), float(c.rect.y)
         p = self.player
         if not self.interior.colliderect(p.rect):
             log.warning("Jugador fuera del campo en %s; vuelve al inicio", p.rect.topleft)
@@ -316,6 +337,12 @@ class World:
         for b in list(self.bubbles):
             b.update(dt, self.solids)
             if b.state == "shot" and b.captured is None:
+                boss = self.boss
+                if (boss is not None and boss.alive and not boss.dying
+                        and b.rect.colliderect(boss.hurt_box)):
+                    self.bubbles.remove(b)          # demasiado grande para atraparlo: le duele
+                    self._hit_boss(1)
+                    continue
                 bomb = next((m for m in self.bombs
                              if not m.lit and b.rect.colliderect(m.rect)), None)
                 if bomb is not None:        # la burbuja choca contra la bomba: la enciende
@@ -374,6 +401,14 @@ class World:
             if p.rect.colliderect(e.rect):
                 self.hit_player(S.DAMAGE_TOUCH, source=e)     # contacto
                 return
+        boss = self.boss
+        if boss is not None and boss.alive and not boss.dying:
+            if any(p.rect.colliderect(r) for r in boss.attack_rects()):
+                self.hit_player(S.DAMAGE_ATTACK)              # manotazo
+                return
+            if p.rect.colliderect(boss.hurt_box):
+                self.hit_player(S.DAMAGE_TOUCH, source=boss)  # contacto
+                return
 
     @property
     def max_lives(self) -> float:
@@ -422,14 +457,57 @@ class World:
         self.gems = [g for g in self.gems if not g.taken]
 
     def _check_coins(self):
-        """Coger una moneda da POINTS_COIN puntos."""
+        """Coger una moneda (también las que suelta el jefe) da POINTS_COIN puntos."""
         p = self.player
-        for c in self.coins:
+        for c in (*self.coins, *self.loot):
             if not c.taken and p.rect.colliderect(c.rect):
                 c.taken = True
                 self.score += S.POINTS_COIN
                 self.popup(c.rect.centerx, c.rect.top, S.POINTS_COIN, S.GOLD)
         self.coins = [c for c in self.coins if not c.taken]
+        self.loot = [c for c in self.loot if not c.taken]
+
+    # --- jefe final ---
+    def _update_boss(self, dt, target):
+        boss = self.boss
+        if boss is None or not boss.alive:
+            return
+        boss.update(dt, self.solids, self.oneway, target)
+        if boss.landed_now and target is not None:
+            self._boss_shockwave()
+        if boss.dying and boss.state_t >= S.BOSS_DEATH_TIME:
+            self._defeat_boss()
+
+    def _boss_shockwave(self):
+        """Al aterrizar del salto el suelo tiembla: hiere al jugador si está de pie en el
+        mismo piso y cerca. Saltando en ese momento se libra."""
+        p, boss = self.player, self.boss
+        if p.invuln > 0 or not p.on_ground:
+            return
+        if abs(p.rect.bottom - boss.rect.bottom) <= 4 and \
+                abs(p.rect.centerx - boss.rect.centerx) <= S.BOSS_SHOCK_RANGE:
+            self.hit_player(S.DAMAGE_TOUCH, source=boss)
+
+    def _hit_boss(self, damage):
+        boss = self.boss
+        if boss.hit(damage):
+            log.info("Jefe derrotado en el nivel %s (%.1f s)", self.number, self.elapsed)
+            self.show_message("boss.defeated")
+        else:
+            log.debug("Jefe: -%s de vida, le quedan %s/%s", damage, boss.hp, boss.max_hp)
+
+    def _defeat_boss(self):
+        """Termina la caída del jefe: explota, da BOSS_POINTS y suelta una lluvia de monedas."""
+        boss = self.boss
+        boss.alive = False
+        cx, cy = boss.rect.center
+        self.explosions.append([cx, cy, 0.0])
+        self.score += S.BOSS_POINTS
+        self.popup(cx, boss.rect.top, S.BOSS_POINTS, S.GOLD)
+        for i in range(S.BOSS_COINS):
+            ang = math.pi * (0.1 + 0.8 * i / max(1, S.BOSS_COINS - 1))   # en abanico, hacia arriba
+            speed = self.rng.uniform(180, 330)
+            self.loot.append(LootCoin(cx, cy, -math.cos(ang) * speed, -math.sin(ang) * speed))
 
     def popup(self, x, y, points, color):
         """Texto flotante con los puntos ganados (sube y se desvanece)."""
@@ -488,6 +566,9 @@ class World:
             if e.alive and e.state == "walk" and near(e.rect):
                 killed.append(e.kind)
                 self._kill_enemy(e)
+        boss = self.boss
+        if boss is not None and boss.alive and not boss.dying and near(boss.rect):
+            self._hit_boss(S.BOSS_BOMB_DAMAGE)
         chained = 0
         for other in self.bombs:                       # reacción en cadena
             if near(other.rect) and other.light():

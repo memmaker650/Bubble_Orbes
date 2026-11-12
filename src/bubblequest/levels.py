@@ -15,6 +15,8 @@ tiene más de 16, el nivel es más alto que la pantalla y se hace scroll vertica
   A  enemigo azul (láser por los ojos)
   N  enemigo naranja (cuchillo, cuerpo a cuerpo; se agacha para esquivar burbujas)
   S  estrella de fin de nivel
+  J  jefe final (uno como mucho): apoya los pies en esta casilla y ocupa unas 2 x 3
+     casillas por encima. Se le derrota con burbujas y bombas; da S.BOSS_POINTS puntos
 """
 
 import json
@@ -98,6 +100,7 @@ class LevelData:
     coins: list = field(default_factory=list)    # posiciones (casillas) de las monedas
     bombs: list = field(default_factory=list)    # posiciones (casillas) de las bombas
     gems: list = field(default_factory=list)     # posiciones (casillas) de las gemas
+    boss: tuple | None = None                    # casilla del jefe final (J)
 
 
 def border_walls(height=S.FIELD_H) -> list:
@@ -118,6 +121,7 @@ def parse_level(rows) -> LevelData:
     height = S.level_height(len(rows))
     solids, oneway, enemies, spawn, star = border_walls(height), [], [], None, None
     bricks, medkits, coins, bombs, gems = [], [], [], [], []
+    boss = None
     for r, row in enumerate(rows):
         if len(row) != S.COLS:
             raise ValueError(f"Fila {r}: debe tener {S.COLS} columnas")
@@ -145,12 +149,16 @@ def parse_level(rows) -> LevelData:
                 bombs.append((x, y))
             elif ch == "G":
                 gems.append((x, y))
+            elif ch == "J":
+                if boss is not None:
+                    raise ValueError(f"Fila {r}, columna {c}: solo puede haber un jefe 'J'")
+                boss = (x, y)
             elif ch != " ":
                 raise ValueError(f"Fila {r}, columna {c}: carácter desconocido {ch!r}")
     if spawn is None:
         raise ValueError("El nivel no tiene inicio de jugador 'P'")
     return LevelData(solids, oneway, spawn, enemies, star, bricks, height, len(rows), medkits,
-                     coins, bombs, gems)
+                     coins, bombs, gems, boss)
 
 
 _cache: list | None = None

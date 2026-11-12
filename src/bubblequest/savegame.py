@@ -10,7 +10,7 @@ import logging
 
 from . import levels
 from . import settings as S
-from .entities import Bubble
+from .entities import Bubble, LootCoin
 from .world import World
 
 log = logging.getLogger(__name__)
@@ -25,6 +25,9 @@ _ENEMY = _BODY + ("direction", "state", "alive", "angry", "jump_cd",
                   "attack", "attack_t", "cooldown", "sight_t", "tired",
                   "super_attack", "crouch_t", "crouch_cd")
 _BUBBLE = ("fx", "fy", "vx", "state", "timer", "life", "age")
+_BOSS = _BODY + ("hp", "alive", "state", "state_t", "side", "facing", "cooldown", "jump_cd",
+                 "walk_dist")
+_LOOT = _BODY
 
 
 def _fields(obj, names) -> dict:
@@ -94,6 +97,8 @@ def snapshot(w: World) -> dict | None:
         "medkits": [list(m.cell) for m in w.medkits],    # los que quedan sin coger
         "coins": [list(c.cell) for c in w.coins],
         "gems": [list(g.cell) for g in w.gems],          # las que quedan sin coger
+        "boss": _fields(w.boss, _BOSS) if w.boss is not None else None,
+        "loot": [_fields(c, _LOOT) for c in w.loot],     # monedas del jefe sin coger
         "bombs": [[*m.cell, m.lit, m.timer] for m in w.bombs],   # las que no han explotado
     }
 
@@ -156,6 +161,16 @@ def restore(data: dict) -> World:
         if "coins" in data:                            # las ya cogidas no vuelven
             left = {tuple(c) for c in data["coins"]}
             w.coins = [c for c in w.coins if c.cell in left]
+        if w.boss is not None and data.get("boss"):    # jefe: vida, postura, si ya cayó
+            _apply(w.boss, data["boss"], _BOSS)
+            if w.boss.state not in ("walk", "crouch", "slap", "rise", "prep", "air", "land",
+                                    "dying"):
+                w.boss.state = "walk"
+        w.loot = []
+        for cd in data.get("loot", []):
+            c = LootCoin(0, 0, 0.0, 0.0)
+            _apply(c, cd, _LOOT)
+            w.loot.append(c)
         if "gems" in data:                             # las ya cogidas no vuelven
             left = {tuple(c) for c in data["gems"]}
             w.gems = [g for g in w.gems if g.cell in left]

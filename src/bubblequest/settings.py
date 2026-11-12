@@ -204,6 +204,40 @@ GEM_COLORS = {                 # (cuerpo, brillo, sombra)
     "aquamarine": ((70, 210, 205), (185, 252, 245), (25, 135, 140)),
     "ruby": ((215, 22, 58), (255, 135, 155), (125, 8, 32)),
 }
+
+# --- Jefe final (casilla J, nivel 30) ---
+# Muñeco grande hecho de "michelines" (anillos hinchados). Triple de tamaño que el jugador.
+# Se le hace daño con burbujas (1) y bombas (BOSS_BOMB_DAMAGE); no se le puede atrapar.
+BOSS_LEVEL = 30
+BOSS_W, BOSS_H = 84, 96               # el jugador mide 28 x 32
+BOSS_HP = {"easy": 18, "normal": 26, "hard": 34}
+BOSS_BOMB_DAMAGE = 8
+BOSS_SPEED = 48.0
+BOSS_POINTS = 5000
+BOSS_COINS = 20                       # monedas que suelta al morir (POINTS_COIN cada una)
+BOSS_HURT_FLASH = 0.15                # parpadeo al recibir un golpe
+# Manotazo: se agacha (aviso), barre el suelo con la mano hacia un lado (o los dos cuando
+# está a menos de la mitad de vida) y se vuelve a levantar. Hay que saltarlo.
+BOSS_SLAP_TRIGGER = 120               # distancia (desde su borde) a la que decide pegar
+BOSS_REACH = 74                       # lo que sale la mano más allá de su cuerpo
+BOSS_CROUCH_TIME = 0.42
+BOSS_SLAP_OUT = 0.16
+BOSS_SLAP_HOLD = 0.22
+BOSS_SLAP_IN = 0.24
+BOSS_RISE_TIME = 0.3
+BOSS_SLAP_COOLDOWN = 1.5
+BOSS_BOTH_CHANCE = 0.4                # con poca vida: probabilidad de pegar a los dos lados
+# Salto vertical: coge impulso agachándose, sube, cae y al aterrizar hace temblar el suelo
+BOSS_JUMP_PREP = 0.32
+BOSS_JUMP_H = 60
+BOSS_LAND_TIME = 0.34
+BOSS_JUMP_EVERY = (3.5, 6.0)          # segundos entre saltos (al azar)
+BOSS_SHOCK_RANGE = 150                # el temblor hiere al jugador en el suelo a esta distancia
+BOSS_FIRST_COOLDOWN = 1.2             # no ataca nada más empezar
+BOSS_DEATH_TIME = 1.4                 # tiembla, parpadea y se deshincha antes de explotar
+BOSS_WHITE = (246, 246, 250)
+BOSS_SHADE = (196, 200, 218)
+BOSS_EDGE = (110, 116, 142)
 POPUP_TIME = 0.8              # "+100" flotando al coger una moneda
 
 # --- Colores ---
