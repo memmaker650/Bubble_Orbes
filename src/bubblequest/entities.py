@@ -206,6 +206,7 @@ class Enemy(Body):
         self.zone = None             # (y de arriba, y de abajo) de su zona, o None (sin límite)
         self.crouch_t = 0.0          # agachado (esquivando una burbuja): tiempo que le queda
         self.crouch_cd = 0.0         # tiempo hasta poder volver a agacharse
+        self.hopping = False         # saltando para subirse a un ladrillo
 
     @property
     def crouching(self) -> bool:
@@ -258,9 +259,10 @@ class Enemy(Body):
         line = Rect(left, eye_y - 1, right - left, 2)
         return any(line.colliderect(s) for s in solids)
 
-    def update(self, dt, solids, oneway, target=None, predicted=None):
+    def update(self, dt, solids, oneway, target=None, predicted=None, bricks=()):
         """``target``: rectángulo del jugador (None = no ataca, p. ej. en el tutorial).
-        ``predicted``: dónde estará el jugador en breve (ataques preventivos, difícil)."""
+        ``predicted``: dónde estará el jugador en breve (ataques preventivos, difícil).
+        ``bricks``: ladrillos del nivel; si uno le corta el paso, se sube a él de un salto."""
         if self.state != "walk":
             return
         self.crouch_cd = max(0.0, self.crouch_cd - dt)
@@ -302,7 +304,7 @@ class Enemy(Body):
         if self.coyote > 0 and not stay:
             self.direction *= -1            # caería fuera de su zona: se da la vuelta
         self.vx = self.direction * speed
-        if self.coyote <= 0 and not stay:
+        if self.coyote <= 0 and not stay and not self.hopping:
             self.vx = 0.0                   # en el aire: no se aleja del borde (cae donde saltó)
         self.jump_cd -= dt
         if self.jump_cd <= 0 and self.coyote > 0:
@@ -310,8 +312,40 @@ class Enemy(Body):
                 self.vy = -S.JUMP_V
                 self.coyote = 0.0
             self.jump_cd = self.rng.uniform(1.5, 4.0)
-        if self.physics(dt, solids, oneway):
-            self.direction *= -1
+        blocked = self.physics(dt, solids, oneway)
+        if self.on_ground:
+            self.hopping = False
+        if blocked and not self.hopping and not self._hop_brick(solids, bricks):
+            self.direction *= -1            # muro (o ladrillo que no puede saltar): media vuelta
+
+    # --- saltar ladrillos ---
+    def _hop_brick(self, solids, bricks) -> bool:
+        """Si lo que le corta el paso es un ladrillo bajo con sitio encima, salta para subirse
+        a él (sin cambiar de sentido) y devuelve True. Evita que se quede encajonado entre una
+        pared y un ladrillo, donde el jugador no podría alcanzarlo."""
+        if self.coyote <= 0:
+            return False
+        probe = self.rect.move(self.direction * 2, 0)
+        brick = next((b for b in bricks if probe.colliderect(b)), None)
+        if brick is None:
+            return False
+        rise = self.rect.bottom - brick.top              # altura a superar
+        if not 0 < rise <= S.ENEMY_HOP_MAX:
+            return False                                 # muy alto (varios ladrillos)
+        raised = self.rect.move(0, -rise - 1)            # justo por encima del ladrillo...
+        over = raised.copy()                             # ...y ya encima de él
+        if self.direction > 0:
+            over.left = brick.left
+        else:
+            over.right = brick.right
+        clear = (self.rect.union(raised), raised.union(over))
+        if any(r.colliderect(s) for r in clear for s in solids):
+            return False                                 # techo o ladrillo encima: no cabe
+        self.vy = -math.sqrt(2 * S.GRAVITY * (rise + S.ENEMY_HOP_MARGIN))
+        self.on_ground = False
+        self.coyote = 0.0
+        self.hopping = True
+        return True
 
     # --- zona ---
     def _ground_ahead(self, solids, oneway) -> bool:

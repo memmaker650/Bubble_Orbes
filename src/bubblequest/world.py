@@ -223,7 +223,7 @@ class World:
         self._dodge_bubbles()
         for e in self.enemies:
             if e.alive:
-                e.update(dt, self.solids, self.oneway, target, predicted)
+                e.update(dt, self.solids, self.oneway, target, predicted, self.bricks)
         self._update_boss(dt, target)
         for c in self.loot:
             c.update(dt, self.solids, self.oneway)

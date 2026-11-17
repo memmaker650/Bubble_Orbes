@@ -52,6 +52,11 @@ ENEMY_BASE_SPEED = 55.0
 ENEMY_SPEED_STEP = 12.0        # +velocidad por nivel...
 ENEMY_SPEED_MAX_STEPS = 6      # ...hasta el nivel 7; después no aumenta (no superan al jugador)
 ENEMY_ANGRY_FACTOR = 1.6
+# Saltito de los enemigos para subirse a un ladrillo que les corta el paso (así no se quedan
+# encajonados entre una pared y un ladrillo). Solo saltan obstáculos de hasta esta altura
+# (un ladrillo) y suben este margen por encima de él.
+ENEMY_HOP_MAX = 44
+ENEMY_HOP_MARGIN = 16
 
 # Enemigo rojo: lengua
 TONGUE_RANGE = 110             # longitud de la lengua en el súper ataque (alcance máximo)
