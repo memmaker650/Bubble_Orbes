@@ -8,6 +8,7 @@ import sys
 import pygame
 
 from . import effects
+from . import ending_art
 from . import intro_art
 from .boss_art import draw_boss, draw_boss_bar
 from . import settings as S
@@ -620,6 +621,180 @@ class LevelErrorScene(Scene):
                       center=(S.LOGICAL_W // 2, S.LOGICAL_H - 60))
 
 
+class EndingScene(Scene):
+    """Animación final, al terminar el nivel 30: en una mazmorra iluminada por antorchas y por
+    la luna que se ve por la ventana, el gusano amigo está encerrado en una cárcel. Entra el
+    personaje y coloca las cinco gemas, una a una, en sus huecos del púlpito; con la última,
+    el púlpito se ilumina, se abre la cárcel y los dos amigos se reencuentran. Un toque salta
+    al final; otro vuelve al menú."""
+
+    PLAYER_SIZE = IntroScene.PLAYER_SIZE
+    PLAYER_START_X = -40
+    PLAYER_END_X = 40                    # se para a la izquierda del púlpito
+
+    def __init__(self, app):
+        super().__init__(app)
+        self.t = 0.0
+        self.small = pygame.font.Font(None, 24)
+        self.background = ending_art.ending_background()
+
+    # --- línea de tiempo ---
+    @staticmethod
+    def gems_start() -> float:
+        """Momento en que lanza la primera gema (poco después de llegar al púlpito)."""
+        return S.ENDING_PLAYER_AT + S.ENDING_PLAYER_WALK + 0.4
+
+    def gem_launch(self, i) -> float:
+        return self.gems_start() + i * S.ENDING_GEM_EVERY
+
+    def gem_progress(self, i) -> float:
+        """Vuelo de la gema ``i`` (0 en la mano, 1 en su hueco; < 0 aún no la ha lanzado)."""
+        return min(1.0, (self.t - self.gem_launch(i)) / S.ENDING_GEM_FLIGHT)
+
+    def gems_placed(self) -> int:
+        return sum(1 for i in range(len(ending_art.GEM_ORDER)) if self.gem_progress(i) >= 1)
+
+    def all_placed_t(self) -> float:
+        return self.gem_launch(len(ending_art.GEM_ORDER) - 1) + S.ENDING_GEM_FLIGHT
+
+    # Tras colocar las gemas (segundos desde la última): se abre el candado, sube la reja,
+    # el gusano sale y el personaje va a su encuentro; se saludan con un corazón y un salto.
+    LOCK_AT, LOCK_DUR = 0.5, 0.5
+    OPEN_AT, OPEN_DUR = 1.0, 1.0
+    EXIT_AT, EXIT_DUR = 2.0, 1.2
+    MEET_AT = 3.2
+    WORM_FREE_X = 262                    # el gusano se para en la puerta de la cárcel
+    PLAYER_MEET_X = 200                  # el personaje se acerca hasta aquí
+
+    def _phase(self, start, duration) -> float:
+        """Progreso (0..1) de una fase que empieza ``start`` s después de colocar la última
+        gema y dura ``duration`` s."""
+        k = (self.t - self.all_placed_t() - start) / duration
+        return min(1.0, max(0.0, k))
+
+    def lock_open(self) -> float:
+        return self._phase(self.LOCK_AT, self.LOCK_DUR)
+
+    def cage_open(self) -> float:
+        k = self._phase(self.OPEN_AT, self.OPEN_DUR)
+        return k * k * (3 - 2 * k)
+
+    def exit_progress(self) -> float:
+        k = self._phase(self.EXIT_AT, self.EXIT_DUR)
+        return 1 - (1 - k) ** 2
+
+    def meet_t(self) -> float:
+        """Tiempo desde que se encuentran los dos amigos (< 0: aún no)."""
+        return self.t - self.all_placed_t() - self.MEET_AT
+
+    def worm_x(self) -> float:
+        return ending_art.WORM_X + (self.WORM_FREE_X - ending_art.WORM_X) * self.exit_progress()
+
+    def done_t(self) -> float:
+        """Fin de la animación: aparece el aviso para volver al menú."""
+        return self.all_placed_t() + self.MEET_AT + 1.2
+
+    @property
+    def done(self) -> bool:
+        return self.t >= self.done_t()
+
+    def _greeting_hop(self, height) -> float:
+        """Salto de alegría al encontrarse."""
+        m = self.meet_t()
+        return math.sin((m - 0.2) / 0.6 * math.pi) * height if 0.2 <= m < 0.8 else 0.0
+
+    def player_rect(self) -> pygame.Rect:
+        k = (self.t - S.ENDING_PLAYER_AT) / S.ENDING_PLAYER_WALK
+        k = min(1.0, max(0.0, k))
+        k_ease = 1 - (1 - k) ** 2
+        x = self.PLAYER_START_X + (self.PLAYER_END_X - self.PLAYER_START_X) * k_ease
+        e = self.exit_progress()
+        x += (self.PLAYER_MEET_X - self.PLAYER_END_X) * e                  # va hacia el gusano
+        walking = 0 < k < 1 or 0 < e < 1
+        hop = abs(math.sin(self.t * 12)) * 6 if walking else 0             # pasitos
+        for i in range(len(ending_art.GEM_ORDER)):                         # saltito al lanzar
+            d = self.t - self.gem_launch(i)
+            if 0 <= d < 0.25:
+                hop = math.sin(d / 0.25 * math.pi) * 10
+        hop = max(hop, self._greeting_hop(30))
+        rect = pygame.Rect((0, 0), self.PLAYER_SIZE)
+        rect.midbottom = (round(x), ending_art.FLOOR_Y - round(hop))
+        return rect
+
+    # --- ciclo ---
+    def handle_event(self, event):
+        if is_confirm(event, self.app.display) or (
+                event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
+            if self.done:
+                self.app.change_scene(MenuScene(self.app))
+            else:
+                self.t = self.done_t()          # salta al final de la animación
+
+    def update(self, dt):
+        self.t += dt
+
+    def draw(self, surf):
+        surf.blit(self.background, (0, 0))
+        ending_art.draw_torches(surf, self.t)
+        light = min(1.0, max(0.0, (self.t - self.all_placed_t()) / 0.6))
+        ending_art.draw_pulpit_light(surf, self.t, light)
+
+        # Gusano encerrado: triste hasta que se colocan las cinco gemas; luego se abre la
+        # cárcel y sale (cimbreándose más deprisa al reptar)
+        blink = (self.t % 3.1) > 2.95
+        wx = self.worm_x()
+        crawling = 0 < self.exit_progress() < 1
+        if self.lock_open() >= 1:                       # candado ya en el suelo, detrás
+            ending_art.draw_lock(surf, 1.0)
+        out = self.exit_progress() > 0         # ya salió: por delante de la cárcel
+
+        def worm():
+            intro_art.draw_shadow(surf, wx - 8, ending_art.FLOOR_Y, 46)
+            intro_art.draw_worm(surf, wx, ending_art.FLOOR_Y,
+                                self.t * (1.6 if crawling or self.meet_t() >= 0 else 0.6),
+                                blink=blink, happy=light > 0, sad=light <= 0)
+        if not out:
+            worm()
+        ending_art.draw_cage_bars(surf, self.cage_open(), self.lock_open())
+        if out:
+            worm()
+
+        # Personaje
+        p = None
+        if self.t >= S.ENDING_PLAYER_AT:
+            p = self.player_rect()
+            intro_art.draw_shadow(surf, p.centerx, ending_art.FLOOR_Y,
+                                  40 - (ending_art.FLOOR_Y - p.bottom) // 3)
+            draw_player_sprite(surf, p, 1)
+
+        # Gemas: en vuelo desde encima del personaje o ya en su hueco, con un destello
+        slots = ending_art.slot_centers()
+        for i, kind in enumerate(ending_art.GEM_ORDER):
+            k = self.gem_progress(i)
+            if k < 0 or p is None:
+                continue
+            if k < 1:
+                start = (p.centerx + 6, p.top - 12)
+                ending_art.draw_flying_gem(surf, start, slots[i], k, kind)
+            else:
+                since = self.t - self.gem_launch(i) - S.ENDING_GEM_FLIGHT
+                ending_art.draw_slot_glow(surf, slots[i], 1 - since / 0.6)
+                sparkle = 0.5 + 0.5 * math.sin(self.t * 5 + i) if light > 0 else 0.0
+                draw_gem(surf, slots[i], ending_art.SLOT_SIZE, kind, sparkle=sparkle)
+
+        # Corazón entre los dos amigos al reencontrarse
+        m = self.meet_t()
+        if m >= 0:
+            k = min(1.0, m / 0.4)
+            size = 24 * k + 2 * math.sin(self.t * 6) * k
+            cx = (self.PLAYER_MEET_X + self.WORM_FREE_X) // 2
+            intro_art.draw_heart(surf, (cx, ending_art.FLOOR_Y - 128 - 10 * k), size)
+
+        if self.done and int(self.t * 2) % 2 == 0:
+            draw_text(surf, self.small, t("common.continue"), S.WHITE,
+                      center=(S.LOGICAL_W // 2, S.LOGICAL_H - 40))
+
+
 class GameScene(Scene):
     def __init__(self, app, level_index=0, lives=None, score=0, world=None,
                  difficulty=S.DEFAULT_DIFFICULTY):
@@ -699,6 +874,8 @@ class GameScene(Scene):
                 scene = game_scene(self.app, w.level_index + 1, w.lives, w.score,
                                    difficulty=w.difficulty)
             self.app.change_scene(scene)
+        elif w.state == "won" and not w.tutorial:   # juego terminado: animación final
+            self.app.change_scene(EndingScene(self.app))
         else:
             self.app.change_scene(MenuScene(self.app))
 

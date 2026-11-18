@@ -124,8 +124,9 @@ def worm_points(x, ground, t, rise=1.0, height=92):
     return pts
 
 
-def draw_worm(surf, x, ground, t, rise=1.0, blink=False, happy=False):
-    """Gusano amigo saliendo de la tierra en ``x``, mirando a la izquierda."""
+def draw_worm(surf, x, ground, t, rise=1.0, blink=False, happy=False, sad=False):
+    """Gusano amigo saliendo de la tierra en ``x``, mirando a la izquierda. ``sad``: triste
+    (mirada baja y boca hacia abajo), p. ej. encerrado en la cárcel."""
     pts = worm_points(x, ground, t, rise)
     clip = surf.get_clip()
     surf.set_clip(pygame.Rect(0, 0, S.LOGICAL_W, ground + 3))     # lo de bajo tierra no se ve
@@ -152,13 +153,20 @@ def draw_worm(surf, x, ground, t, rise=1.0, blink=False, happy=False):
             pygame.draw.line(surf, S.BLACK, (ex - 4, ey), (ex + 4, ey), 2)
         else:
             pygame.draw.circle(surf, S.WHITE, (ex, ey), 5)
-            pygame.draw.circle(surf, S.BLACK, (ex - 2, ey + 1), 2.5)
-    # Mejillas y sonrisa (más grande cuando está contento)
+            pygame.draw.circle(surf, S.BLACK, (ex - 2, ey + (3 if sad else 1)), 2.5)
+            if sad:                                               # cejas caídas
+                pygame.draw.line(surf, S.WORM_DARK, (ex - 4, ey - 9), (ex + 3, ey - 6), 2)
+    # Mejillas y boca: sonrisa (más grande cuando está contento) o boca triste
     pygame.draw.circle(surf, S.WORM_CHEEK, (hx - 14, hy + 6), 3)
     pygame.draw.circle(surf, S.WORM_CHEEK, (hx + 8, hy + 6), 3)
-    mouth = pygame.Rect(0, 0, 14 if happy else 10, 10 if happy else 6)
-    mouth.center = (hx - 4, hy + 6)
-    pygame.draw.arc(surf, S.BLACK, mouth, math.pi * 1.05, math.pi * 1.95, 2)
+    if sad:
+        mouth = pygame.Rect(0, 0, 10, 6)
+        mouth.center = (hx - 4, hy + 11)
+        pygame.draw.arc(surf, S.BLACK, mouth, math.pi * 0.1, math.pi * 0.9, 2)
+    else:
+        mouth = pygame.Rect(0, 0, 14 if happy else 10, 10 if happy else 6)
+        mouth.center = (hx - 4, hy + 6)
+        pygame.draw.arc(surf, S.BLACK, mouth, math.pi * 1.05, math.pi * 1.95, 2)
     # Hoja en la cabeza, para darle gracia
     leaf = [(hx + 2, hy - hr + 1), (hx + 14, hy - hr - 12), (hx + 6, hy - hr - 2)]
     pygame.draw.polygon(surf, S.TREE_LEAF, leaf)
