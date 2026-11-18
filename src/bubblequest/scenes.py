@@ -8,6 +8,7 @@ import sys
 import pygame
 
 from . import effects
+from . import intro_art
 from .boss_art import draw_boss, draw_boss_bar
 from . import settings as S
 from . import translations
@@ -449,11 +450,123 @@ class ScoresScene(Scene):
 
 def game_scene(app, level_index=0, *args, **kwargs):
     """GameScene del nivel o, si su fichero está dañado, la pantalla que lo explica (así un
-    error al editar un JSON no cierra el juego)."""
-    try:
-        return GameScene(app, level_index, *args, **kwargs)
-    except levels.LevelError as exc:
-        return LevelErrorScene(app, exc, levels.LEVELS[level_index].number)
+    error al editar un JSON no cierra el juego). Antes del nivel 1 va la presentación."""
+    def make():
+        try:
+            return GameScene(app, level_index, *args, **kwargs)
+        except levels.LevelError as exc:
+            return LevelErrorScene(app, exc, levels.LEVELS[level_index].number)
+    if S.INTRO_ENABLED and levels.LEVELS[level_index].number == 1:
+        return IntroScene(app, make)
+    return make()
+
+
+class IntroScene(Scene):
+    """Animación antes del nivel 1: sale de la tierra, a la derecha, el gusano amigo del
+    personaje; al segundo llega el personaje caminando y se saludan, con el árbol al fondo y
+    un sol radiante. Pasa sola al nivel a los S.INTRO_DURATION s; un toque o Intro la salta.
+
+    ``next_scene``: función que crea la escena siguiente (el nivel 1). Se llama al terminar,
+    así el nivel no se carga si la app se cierra durante la animación."""
+
+    PLAYER_SIZE = (round(28 * _MENU_PLAYER_SCALE), round(32 * _MENU_PLAYER_SCALE))
+    PLAYER_START_X = -40                 # centro del personaje al aparecer (fuera, a la izq.)
+    PLAYER_END_X = 196                   # donde se para, delante del árbol
+    WORM_X = 300
+
+    def __init__(self, app, next_scene):
+        super().__init__(app)
+        self.next_scene = next_scene
+        self.t = 0.0
+        self.done = False
+        self.small = pygame.font.Font(None, 24)
+        self.background = intro_art.intro_background()
+        self._fade = opaque_surface((S.LOGICAL_W, S.LOGICAL_H))
+        self._fade.fill(S.BLACK)
+
+    # --- línea de tiempo ---
+    def worm_rise(self) -> float:
+        """Cuánto ha salido el gusano de la tierra (0..1), con un pequeño rebote al final."""
+        k = min(1.0, self.t / S.INTRO_WORM_RISE)
+        return 1 - (1 - k) ** 3 + 0.12 * math.sin(math.pi * k)
+
+    def player_visible(self) -> bool:
+        return self.t >= S.INTRO_PLAYER_AT
+
+    def player_walk(self) -> float:
+        """Progreso de la llegada del personaje (0..1, con frenada suave)."""
+        k = (self.t - S.INTRO_PLAYER_AT) / S.INTRO_PLAYER_WALK
+        k = min(1.0, max(0.0, k))
+        return 1 - (1 - k) ** 2
+
+    def arrived_t(self) -> float:
+        """Tiempo desde que el personaje llegó junto al gusano (< 0: aún no)."""
+        return self.t - S.INTRO_PLAYER_AT - S.INTRO_PLAYER_WALK
+
+    def player_rect(self) -> pygame.Rect:
+        k = self.player_walk()
+        x = self.PLAYER_START_X + (self.PLAYER_END_X - self.PLAYER_START_X) * k
+        walking = 0 < k < 1
+        hop = abs(math.sin(self.t * 12)) * 6 if walking else 0       # pasitos
+        a = self.arrived_t()
+        if 0.5 <= a < 1.3:                                            # salto de alegría
+            hop = math.sin((a - 0.5) / 0.8 * math.pi) * 34
+        rect = pygame.Rect((0, 0), self.PLAYER_SIZE)
+        rect.midbottom = (round(x), intro_art.GROUND_Y - round(hop))
+        return rect
+
+    # --- ciclo ---
+    def finish(self):
+        if not self.done:
+            self.done = True
+            self.app.change_scene(self.next_scene())
+
+    def handle_event(self, event):
+        if is_confirm(event, self.app.display) or (
+                event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
+            self.finish()
+
+    def update(self, dt):
+        self.t += dt
+        if self.t >= S.INTRO_DURATION:
+            self.finish()
+
+    def draw(self, surf):
+        ground = intro_art.GROUND_Y
+        surf.blit(self.background, (0, 0))
+        intro_art.draw_sun(surf, self.t)
+
+        # Gusano, saliendo de su agujero a la derecha
+        a = self.arrived_t()
+        intro_art.draw_hole(surf, self.WORM_X, ground, min(1.0, self.t / 0.25))
+        if self.t > 0.1:
+            intro_art.draw_shadow(surf, self.WORM_X - 8, ground, 46)
+            blink = (self.t % 2.6) > 2.45
+            intro_art.draw_worm(surf, self.WORM_X, ground, self.t, self.worm_rise(),
+                                blink=blink, happy=a >= 0)
+
+        # Personaje: entra caminando por la izquierda y se para delante del gusano
+        if self.player_visible():
+            p = self.player_rect()
+            intro_art.draw_shadow(surf, p.centerx, ground, 40 - (ground - p.bottom) // 3)
+            draw_player_sprite(surf, p, 1)
+
+        # Corazón entre los dos amigos al saludarse
+        if a >= 0.2:
+            k = min(1.0, (a - 0.2) / 0.4)
+            size = 22 * k + 2 * math.sin(self.t * 6) * k
+            cx = (self.PLAYER_END_X + self.WORM_X) // 2 + 4
+            intro_art.draw_heart(surf, (cx, ground - 120 - 10 * k), size)
+
+        if self.t > 0.6 and int(self.t * 2) % 2 == 0:
+            draw_text(surf, self.small, t("common.continue"), S.WHITE,
+                      center=(S.LOGICAL_W // 2, S.LOGICAL_H - 40))
+
+        # Fundido a negro al final
+        left = S.INTRO_DURATION - self.t
+        if left < S.INTRO_FADE:
+            self._fade.set_alpha(round(255 * (1 - max(0.0, left) / S.INTRO_FADE)))
+            surf.blit(self._fade, (0, 0))
 
 
 def _visible_spaces(text) -> str:
